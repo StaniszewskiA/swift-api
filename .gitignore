@@ -1,0 +1,6 @@
+.idea
+.pytest_cache
+__pycache__
+.coferage
+.tmp_coverage_files
+.pip_audit_cache
