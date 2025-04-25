@@ -13,7 +13,9 @@ dependencies = [
     "uvicorn (>=0.34.2,<0.35.0)",
     "sqlalchemy (>=2.0.40,<3.0.0)",
     "psycopg2-binary (>=2.9.10,<3.0.0)",
-    "alembic (>=1.15.2,<2.0.0)"
+    "alembic (>=1.15.2,<2.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "openpyxl (>=3.1.5,<4.0.0)"
 ]
 
 
@@ -22,6 +24,7 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.group.dev.dependencies]
+pytest-cov = "^6.1.1"
 ruff = "^0.11.6"
 
 [tool.poetry]

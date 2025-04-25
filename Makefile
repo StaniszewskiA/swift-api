@@ -14,5 +14,5 @@ test: ## Run tests
 
 test-coverage: ## Run tests and calculate test coverage
 	-@mkdir .tmp_coverage_files
-	poetry run pytest --cov=swift-api tests
+	poetry run pytest --cov=swift-api swift-api/tests
 	-@rmdir /s /q .tmp_coverage_files
