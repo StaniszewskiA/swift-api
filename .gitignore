@@ -4,3 +4,5 @@ __pycache__
 .coferage
 .tmp_coverage_files
 .pip_audit_cache
+swift-api/data/*
+.coverage
