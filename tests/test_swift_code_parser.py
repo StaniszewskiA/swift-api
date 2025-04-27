@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 from pandas.testing import assert_frame_equal
-from src.parse_swift_file import parse_swift_file
+from app.services.swift_code_parser import parse_swift_file
 
 
 @pytest.fixture
