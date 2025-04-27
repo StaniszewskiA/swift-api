@@ -1,6 +1,7 @@
+import sys
+
 import pandas as pd
 from app.models.models import SwiftCode
-from app.core.database import SessionLocal
 
 
 def parse_swift_file(file_path: str) -> None:
@@ -39,7 +40,7 @@ def parse_swift_file(file_path: str) -> None:
         return None
 
 
-def save_swift_codes(df: pd.DataFrame) -> None:
+def save_swift_codes(df: pd.DataFrame, db_session) -> None:
     """
     Saves the parsed SWIFT codes from a DataFrame to the database.
 
@@ -52,8 +53,21 @@ def save_swift_codes(df: pd.DataFrame) -> None:
     -------
     None
     """
+    required_columns = [
+        "SWIFT CODE",
+        "BANK NAME",
+        "COUNTRY ISO2 CODE",
+        "COUNTRY NAME",
+        "Is Headquarters",
+        "Headquarters CODE",
+    ]
+
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise KeyError(f"Missing required columns: {', '.join(missing_columns)}")
+
     try:
-        db = SessionLocal()
+        swift_code_entries = []
 
         for _, row in df.iterrows():
             swift_code_entry = SwiftCode(
@@ -64,13 +78,21 @@ def save_swift_codes(df: pd.DataFrame) -> None:
                 is_headquarter=row.get("Is Headquarters", False),
                 headquarters_code=row.get("Headquarters CODE", ""),
             )
-            db.add(swift_code_entry)
+            swift_code_entries.append(swift_code_entry)
 
-        db.commit()
+            if len(swift_code_entries) >= 100:
+                db_session.add_all(swift_code_entries)
+                swift_code_entries.clear()
 
-    except Exception as e:
-        print(f"Error saving data to the database: {e}")
-        db.rollback()
+        if swift_code_entries:
+            db_session.add_all(swift_code_entries)
+
+        db_session.commit()
+
+    except Exception as ex:
+        db_session.rollback()
+        print(f"Error saving data to the database: {ex}", file=sys.stderr)
+        raise
 
     finally:
-        db.close()
+        db_session.close()
