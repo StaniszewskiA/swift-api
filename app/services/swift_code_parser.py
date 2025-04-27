@@ -1,7 +1,9 @@
-import sys
-
+import logging
 import pandas as pd
 from app.models.models import SwiftCode
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
 def parse_swift_file(file_path: str) -> None:
@@ -18,7 +20,8 @@ def parse_swift_file(file_path: str) -> None:
     None
     """
     try:
-        df = pd.read_excel(file_path)
+        # Time zone is redundant is we know the city.
+        df = pd.read_excel(file_path, usecols=["SWIFT CODE", "BANK NAME", "COUNTRY ISO2 CODE", "COUNTRY NAME"])
 
         for col in ("COUNTRY ISO2 CODE", "COUNTRY NAME"):
             if col in df.columns:
@@ -30,14 +33,11 @@ def parse_swift_file(file_path: str) -> None:
                 lambda row: row["SWIFT CODE"] if row["Is Headquarters"] else row["SWIFT CODE"][:8] + "XXX", axis=1
             )
 
-        # Time zone is redundant is we know the city.
-        redundant_cols = ["TIME ZONE"]
-        df = df.drop(columns=[col for col in redundant_cols if col in df.columns])
-
+        logger.info(f"Finished parsing file: {file_path}")
         return df
     except Exception as e:
-        print(f"Error parsing file: {e}")
-        return None
+        logger.error(f"Error parsing file {file_path}: {e}")
+        return pd.DataFrame()
 
 
 def save_swift_codes(df: pd.DataFrame, db_session) -> None:
@@ -64,13 +64,13 @@ def save_swift_codes(df: pd.DataFrame, db_session) -> None:
 
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
+        logger.error(f"Missing required columns: {', '.join(missing_columns)}")
         raise KeyError(f"Missing required columns: {', '.join(missing_columns)}")
 
     try:
-        swift_code_entries = []
-
-        for _, row in df.iterrows():
-            swift_code_entry = SwiftCode(
+        logger.info("Started saving SWIFT codes to the database.")
+        swift_code_entries = [
+            SwiftCode(
                 swift_code=row["SWIFT CODE"],
                 bank_name=row.get("BANK NAME", ""),
                 country_iso2=row.get("COUNTRY ISO2 CODE", ""),
@@ -78,21 +78,21 @@ def save_swift_codes(df: pd.DataFrame, db_session) -> None:
                 is_headquarter=row.get("Is Headquarters", False),
                 headquarters_code=row.get("Headquarters CODE", ""),
             )
-            swift_code_entries.append(swift_code_entry)
+            for _, row in df.iterrows()
+        ]
 
-            if len(swift_code_entries) >= 100:
-                db_session.add_all(swift_code_entries)
-                swift_code_entries.clear()
-
-        if swift_code_entries:
-            db_session.add_all(swift_code_entries)
+        batch_size = 100
+        for i in range(0, len(swift_code_entries), batch_size):
+            logger.info(f"Inserting batch {i // batch_size + 1} of size {batch_size}.")
+            db_session.bulk_save_objects(swift_code_entries[i : i + batch_size])
 
         db_session.commit()
 
     except Exception as ex:
         db_session.rollback()
-        print(f"Error saving data to the database: {ex}", file=sys.stderr)
+        logger.error(f"Error saving data to the database: {ex}")
         raise
 
     finally:
         db_session.close()
+        logger.info("Database session closed.")

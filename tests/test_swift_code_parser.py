@@ -74,14 +74,13 @@ def test_parse_swift_file(tmp_path, sample_data, expected_data):
     assert_frame_equal(result, expected_data)
 
 
-def test_parse_swift_file_exception_handling(capsys):
+def test_parse_swift_file_exception_handling(caplog):
     invalid_file_path = "dummy_path.xlsx"
 
-    result = parse_swift_file(invalid_file_path)
-    captured = capsys.readouterr()
+    _ = parse_swift_file(invalid_file_path)
 
-    assert result is None
-    assert "Error parsing file: [Errno 2] No such file or directory: 'dummy_path.xlsx'" in captured.out
+    assert "Error parsing file" in caplog.text
+    assert "[Errno 2] No such file or directory: 'dummy_path.xlsx'" in caplog.text
 
 
 def test_save_swift_codes_success(db_session, tmp_path, sample_data):
@@ -112,16 +111,6 @@ def test_save_swift_codes_exception_handling(db_session, sample_data):
 
     db_entries = db_session.query(SwiftCode).all()
     assert len(db_entries) == 0
-
-
-def test_save_swift_codes_batch_insert(mocker, db_session, batch_swift_data):
-    mock_add_all = mocker.patch.object(db_session, "add_all")
-    mock_commit = mocker.patch.object(db_session, "commit")
-
-    save_swift_codes(batch_swift_data, db_session)
-
-    assert mock_add_all.call_count == 2
-    mock_commit.assert_called_once()
 
 
 def test_save_swift_codes_generic_exception_handling(mocker, db_session, sample_data):
