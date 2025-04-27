@@ -1,4 +1,6 @@
 import pandas as pd
+from app.models.models import SwiftCode
+from app.core.database import SessionLocal
 
 
 def parse_swift_file(file_path: str) -> None:
@@ -35,3 +37,40 @@ def parse_swift_file(file_path: str) -> None:
     except Exception as e:
         print(f"Error parsing file: {e}")
         return None
+
+
+def save_swift_codes(df: pd.DataFrame) -> None:
+    """
+    Saves the parsed SWIFT codes from a DataFrame to the database.
+
+    Parameters
+    ----------
+        df : pd.DataFrame
+            DataFrame containing the parsed SWIFT code data
+
+    Returns
+    -------
+    None
+    """
+    try:
+        db = SessionLocal()
+
+        for _, row in df.iterrows():
+            swift_code_entry = SwiftCode(
+                swift_code=row["SWIFT CODE"],
+                bank_name=row.get("BANK NAME", ""),
+                country_iso2=row.get("COUNTRY ISO2 CODE", ""),
+                country_name=row.get("COUNTRY NAME", ""),
+                is_headquarter=row.get("Is Headquarters", False),
+                headquarters_code=row.get("Headquarters CODE", ""),
+            )
+            db.add(swift_code_entry)
+
+        db.commit()
+
+    except Exception as e:
+        print(f"Error saving data to the database: {e}")
+        db.rollback()
+
+    finally:
+        db.close()
