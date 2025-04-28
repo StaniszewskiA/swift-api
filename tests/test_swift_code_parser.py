@@ -65,32 +65,30 @@ def batch_swift_data():
     )
 
 
-@pytest.fixture
-def temp_file(tmp_path, sample_data):
+def test_parse_swift_file(tmp_path, sample_data, expected_data):
     temp_file = tmp_path / "test_swift_file.xlsx"
     sample_data.to_excel(temp_file, index=False)
-    return temp_file
 
-
-@pytest.mark.parametrize(
-    "file_path, expected_error",
-    [
-        ("dummy_path.xlsx", "[Errno 2] No such file or directory: 'dummy_path.xlsx'"),
-    ],
-)
-def test_parse_swift_file_exception_handling(caplog, file_path, expected_error):
-    _ = parse_swift_file(file_path)
-    assert "Error parsing file" in caplog.text
-    assert expected_error in caplog.text
-
-
-def test_parse_swift_file(temp_file, sample_data, expected_data):
     result = parse_swift_file(temp_file)
+
     assert_frame_equal(result, expected_data)
 
 
-def test_save_swift_codes_success(mock_db_session, temp_file, sample_data):
+def test_parse_swift_file_exception_handling(caplog):
+    invalid_file_path = "dummy_path.xlsx"
+
+    _ = parse_swift_file(invalid_file_path)
+
+    assert "Error parsing file" in caplog.text
+    assert "[Errno 2] No such file or directory: 'dummy_path.xlsx'" in caplog.text
+
+
+def test_save_swift_codes_success(mock_db_session, tmp_path, sample_data):
+    temp_file = tmp_path / "test_swift_file.xlsx"
+    sample_data.to_excel(temp_file, index=False)
+
     parsed_data = parse_swift_file(temp_file)
+
     save_swift_codes(parsed_data, mock_db_session)
 
     db_entries = mock_db_session.query(SwiftCode).limit(4).all()
@@ -105,31 +103,21 @@ def test_save_swift_codes_success(mock_db_session, temp_file, sample_data):
         assert entry.headquarters_code == row["Headquarters CODE"]
 
 
-@pytest.mark.parametrize(
-    "data, exception, db_check",
-    [
-        (pd.DataFrame(), KeyError, 0),
-    ],
-)
-def test_save_swift_codes_exception_handling(mock_db_session, data, exception, db_check):
-    with pytest.raises(exception):
-        save_swift_codes(data, mock_db_session)
+def test_save_swift_codes_exception_handling(mock_db_session, sample_data):
+    invalid_data = sample_data.drop(columns=["SWIFT CODE"])
+
+    with pytest.raises(KeyError):
+        save_swift_codes(invalid_data, mock_db_session)
 
     db_entries = mock_db_session.query(SwiftCode).all()
-    assert len(db_entries) == db_check
+    assert len(db_entries) == 0
 
 
-@pytest.mark.parametrize(
-    "side_effect, db_check",
-    [
-        (Exception("Mocked database error"), 0),
-    ],
-)
-def test_save_swift_codes_generic_exception_handling(mocker, mock_db_session, sample_data, side_effect, db_check):
-    mocker.patch.object(mock_db_session, "add_all", side_effect=side_effect)
+def test_save_swift_codes_generic_exception_handling(mocker, mock_db_session, sample_data):
+    mocker.patch.object(mock_db_session, "add_all", side_effect=Exception("Mocked database error"))
 
     with pytest.raises(Exception):
         save_swift_codes(sample_data, mock_db_session)
 
     db_entries = mock_db_session.query(SwiftCode).all()
-    assert len(db_entries) == db_check
+    assert len(db_entries) == 0
