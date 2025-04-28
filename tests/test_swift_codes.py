@@ -1,0 +1,123 @@
+from fastapi.testclient import TestClient
+from app.main import app
+from app.models.models import SwiftCode
+from unittest.mock import MagicMock, patch
+import pytest
+
+
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+
+@pytest.fixture
+def mock_session():
+    mock_db = MagicMock()
+    mock_db.close = MagicMock()
+
+    mock_filter = MagicMock()
+    mock_db.query.return_value = mock_filter
+
+    mock_filter.filter.return_value = mock_filter
+    mock_filter.first.return_value = SwiftCode(
+        swift_code="ABC123",
+        name="Test Bank",
+        country_iso2="US",
+        country_name="United States",
+        is_headquarter=True,
+        headquarters_code="HQ123",
+    )
+
+    yield mock_db
+    mock_db.close()
+
+
+@patch("app.core.database.SessionLocal", autospec=True)
+def test_get_swift_code(mock_db_class, mock_session, client):
+    mock_db_class.return_value = mock_session
+
+    response = client.get("/v1/swift-codes/ABC123")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["swiftCode"] == "ABC123"
+    assert data["bankName"] == "Test Bank"
+
+
+@patch("app.core.database.SessionLocal", autospec=True)
+def test_get_swift_code_not_found(mock_db_class, mock_session, client):
+    mock_db_class.return_value = mock_session
+    mock_session.query.return_value.filter.return_value.first.return_value = None
+
+    response = client.get("/v1/swift-codes/Non-existing")
+
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"] == "SWIFT code not found"
+
+
+@patch("app.core.database.SessionLocal", autospec=True)
+def test_get_swift_code_headquarter_only(mock_db_class, mock_session, client):
+    mock_db_class.return_value = mock_session
+
+    mock_session.query.return_value.filter.return_value.first.return_value = SwiftCode(
+        swift_code="HQ123",
+        name="Headquarter Bank",
+        country_iso2="US",
+        country_name="United States",
+        is_headquarter=True,
+        headquarters_code=None,
+    )
+
+    response = client.get("/v1/swift-codes/HQ123")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["swiftCode"] == "HQ123"
+    assert data["bankName"] == "Headquarter Bank"
+    assert "branches" in data
+    assert data["branches"] == []
+
+
+@patch("app.core.database.SessionLocal", autospec=True)
+def test_get_swift_code_with_branches(mock_db_class, mock_session, client):
+    mock_db_class.return_value = mock_session
+
+    mock_session.query.return_value.filter.return_value.first.return_value = SwiftCode(
+        swift_code="HQ123",
+        name="Headquarter Bank",
+        country_iso2="US",
+        country_name="United States",
+        is_headquarter=True,
+        headquarters_code=None,
+    )
+
+    mock_session.query.return_value.filter.return_value.all.return_value = [
+        SwiftCode(
+            swift_code="BR123",
+            name="Branch Bank 1",
+            country_iso2="US",
+            country_name="United States",
+            is_headquarter=False,
+            headquarters_code="HQ123",
+        ),
+        SwiftCode(
+            swift_code="BR456",
+            name="Branch Bank 2",
+            country_iso2="US",
+            country_name="United States",
+            is_headquarter=False,
+            headquarters_code="HQ123",
+        ),
+    ]
+
+    response = client.get("/v1/swift-codes/HQ123")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["swiftCode"] == "HQ123"
+    assert data["bankName"] == "Headquarter Bank"
+    assert "branches" in data
+    assert len(data["branches"]) == 2
+    assert data["branches"][0]["swiftCode"] == "BR123"
+    assert data["branches"][1]["swiftCode"] == "BR456"
