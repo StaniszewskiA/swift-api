@@ -7,7 +7,7 @@ setup: ## Install development dependencies
 	poetry run pre-commit install
 
 uvicorn-server:  ## Run the uvicorn server
-	poetry run uvicorn app.src.main:app --reload --port 8080
+	poetry run uvicorn app.main:app --reload --port 8080
 
 test: ## Run tests
 	poetry run ruff check

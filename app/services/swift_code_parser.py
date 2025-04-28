@@ -21,7 +21,7 @@ def parse_swift_file(file_path: str) -> None:
     """
     try:
         # Time zone is redundant is we know the city.
-        df = pd.read_excel(file_path, usecols=["SWIFT CODE", "BANK NAME", "COUNTRY ISO2 CODE", "COUNTRY NAME"])
+        df = pd.read_excel(file_path, usecols=["SWIFT CODE", "NAME", "COUNTRY ISO2 CODE", "COUNTRY NAME"])
 
         for col in ("COUNTRY ISO2 CODE", "COUNTRY NAME"):
             if col in df.columns:
@@ -55,7 +55,7 @@ def save_swift_codes(df: pd.DataFrame, db_session) -> None:
     """
     required_columns = [
         "SWIFT CODE",
-        "BANK NAME",
+        "NAME",
         "COUNTRY ISO2 CODE",
         "COUNTRY NAME",
         "Is Headquarters",
@@ -72,7 +72,7 @@ def save_swift_codes(df: pd.DataFrame, db_session) -> None:
         swift_code_entries = [
             SwiftCode(
                 swift_code=row["SWIFT CODE"],
-                bank_name=row.get("BANK NAME", ""),
+                name=row.get("NAME", ""),
                 country_iso2=row.get("COUNTRY ISO2 CODE", ""),
                 country_name=row.get("COUNTRY NAME", ""),
                 is_headquarter=row.get("Is Headquarters", False),
