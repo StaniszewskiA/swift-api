@@ -12,6 +12,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: swift_user
+          POSTGRES_PASSWORD: swift_pass
+          POSTGRES_DB: swift_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -27,6 +42,8 @@ jobs:
           poetry install
 
       - name: Run tests
+        env:
+          DATABASE_URL: postgresql+psycopg2://swift_user:swift_pass@localhost:5432/swift_db
         run: |
           poetry run pytest
 
