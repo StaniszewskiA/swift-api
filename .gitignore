@@ -4,5 +4,4 @@ __pycache__
 .coferage
 .tmp_coverage_files
 .pip_audit_cache
-app/data/*
 .coverage
