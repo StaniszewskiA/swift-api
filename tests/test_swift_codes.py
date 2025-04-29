@@ -26,6 +26,7 @@ def mock_session():
         country_name="United States",
         is_headquarter=True,
         headquarters_code="HQ123",
+        address="Test Address",
     )
 
     yield mock_db
@@ -42,6 +43,7 @@ def test_get_swift_code(mock_db_class, mock_session, client):
     data = response.json()
     assert data["swiftCode"] == "ABC123"
     assert data["bankName"] == "Test Bank"
+    assert data["branches"] == []  # Ensure branches are returned as an empty list
 
 
 @patch("app.core.database.SessionLocal", autospec=True)
@@ -67,6 +69,7 @@ def test_get_swift_code_headquarter_only(mock_db_class, mock_session, client):
         country_name="United States",
         is_headquarter=True,
         headquarters_code=None,
+        address="Headquarters Address",
     )
 
     response = client.get("/v1/swift-codes/HQ123")
@@ -75,14 +78,14 @@ def test_get_swift_code_headquarter_only(mock_db_class, mock_session, client):
     data = response.json()
     assert data["swiftCode"] == "HQ123"
     assert data["bankName"] == "Headquarter Bank"
-    assert "branches" in data
-    assert data["branches"] == []
+    assert data["branches"] == []  # Check for empty branches
 
 
 @patch("app.core.database.SessionLocal", autospec=True)
 def test_get_swift_code_with_branches(mock_db_class, mock_session, client):
     mock_db_class.return_value = mock_session
 
+    # Mocking the headquarter bank
     mock_session.query.return_value.filter.return_value.first.return_value = SwiftCode(
         swift_code="HQ123",
         name="Headquarter Bank",
@@ -90,8 +93,10 @@ def test_get_swift_code_with_branches(mock_db_class, mock_session, client):
         country_name="United States",
         is_headquarter=True,
         headquarters_code=None,
+        address="Headquarters Address",
     )
 
+    # Mocking the branches
     mock_session.query.return_value.filter.return_value.all.return_value = [
         SwiftCode(
             swift_code="BR123",
@@ -100,6 +105,7 @@ def test_get_swift_code_with_branches(mock_db_class, mock_session, client):
             country_name="United States",
             is_headquarter=False,
             headquarters_code="HQ123",
+            address="Branch 1 Address",
         ),
         SwiftCode(
             swift_code="BR456",
@@ -108,6 +114,7 @@ def test_get_swift_code_with_branches(mock_db_class, mock_session, client):
             country_name="United States",
             is_headquarter=False,
             headquarters_code="HQ123",
+            address="Branch 2 Address",
         ),
     ]
 
@@ -120,4 +127,6 @@ def test_get_swift_code_with_branches(mock_db_class, mock_session, client):
     assert "branches" in data
     assert len(data["branches"]) == 2
     assert data["branches"][0]["swiftCode"] == "BR123"
+    assert data["branches"][0]["bankName"] == "Branch Bank 1"
     assert data["branches"][1]["swiftCode"] == "BR456"
+    assert data["branches"][1]["bankName"] == "Branch Bank 2"
