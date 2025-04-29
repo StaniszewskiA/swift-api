@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from app.models.models import SwiftCode
-from app.routers import swift_code
+from app.api.v1 import swift_code
 from fastapi import FastAPI
 
 from .core.logger import logger
