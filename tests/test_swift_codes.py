@@ -43,7 +43,7 @@ def test_get_swift_code(mock_db_class, mock_session, client):
     data = response.json()
     assert data["swiftCode"] == "ABC123"
     assert data["bankName"] == "Test Bank"
-    assert data["branches"] == []  # Ensure branches are returned as an empty list
+    assert data["branches"] == []
 
 
 @patch("app.core.database.SessionLocal", autospec=True)
@@ -78,14 +78,13 @@ def test_get_swift_code_headquarter_only(mock_db_class, mock_session, client):
     data = response.json()
     assert data["swiftCode"] == "HQ123"
     assert data["bankName"] == "Headquarter Bank"
-    assert data["branches"] == []  # Check for empty branches
+    assert data["branches"] == []
 
 
 @patch("app.core.database.SessionLocal", autospec=True)
 def test_get_swift_code_with_branches(mock_db_class, mock_session, client):
     mock_db_class.return_value = mock_session
 
-    # Mocking the headquarter bank
     mock_session.query.return_value.filter.return_value.first.return_value = SwiftCode(
         swift_code="HQ123",
         name="Headquarter Bank",
@@ -96,7 +95,6 @@ def test_get_swift_code_with_branches(mock_db_class, mock_session, client):
         address="Headquarters Address",
     )
 
-    # Mocking the branches
     mock_session.query.return_value.filter.return_value.all.return_value = [
         SwiftCode(
             swift_code="BR123",
@@ -130,3 +128,51 @@ def test_get_swift_code_with_branches(mock_db_class, mock_session, client):
     assert data["branches"][0]["bankName"] == "Branch Bank 1"
     assert data["branches"][1]["swiftCode"] == "BR456"
     assert data["branches"][1]["bankName"] == "Branch Bank 2"
+
+
+@patch("app.core.database.SessionLocal", autospec=True)
+def test_get_swift_codes_by_country(mock_db_class, mock_session, client):
+    mock_db_class.return_value = mock_session
+
+    mock_session.query.return_value.filter.return_value.all.return_value = [
+        SwiftCode(
+            swift_code="HQ001",
+            name="Test HQ Bank",
+            country_iso2="PL",
+            country_name="Poland",
+            is_headquarter=True,
+            headquarters_code=None,
+            address="HQ Address",
+        ),
+        SwiftCode(
+            swift_code="BR001",
+            name="Test Branch Bank",
+            country_iso2="PL",
+            country_name="Poland",
+            is_headquarter=False,
+            headquarters_code="HQ001",
+            address="Branch Address",
+        ),
+    ]
+
+    response = client.get("/v1/swift-codes/country/PL")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["countryISO2"] == "PL"
+    assert data["countryName"] == "Poland"
+    assert len(data["swiftCodes"]) == 2
+    assert data["swiftCodes"][0]["swiftCode"] == "HQ001"
+    assert data["swiftCodes"][1]["swiftCode"] == "BR001"
+
+
+@patch("app.core.database.SessionLocal", autospec=True)
+def test_get_swift_codes_by_country_not_found(mock_db_class, mock_session, client):
+    mock_db_class.return_value = mock_session
+    mock_session.query.return_value.filter.return_value.all.return_value = []
+
+    response = client.get("/v1/swift-code/country/Unknown")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Not Found"

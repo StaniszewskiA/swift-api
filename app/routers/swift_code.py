@@ -1,4 +1,4 @@
-from app.schemas.swift_code import SwiftCodeResponse
+from app.schemas.swift_code import CountrySwiftCodesResponse, SwiftCodeResponse, SwiftCodeEntry
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import yield_db
@@ -73,4 +73,53 @@ def get_swift_code_details(swift_code: str, db: Session) -> SwiftCodeResponse:
 
 @router.get("/{swift_code}", response_model=SwiftCodeResponse)
 def get_swift_code(swift_code: str, db: Session = Depends(yield_db)):
+    """
+    Endpoint to get bank details by SWIFT code.
+    """
     return get_swift_code_details(swift_code, db)
+
+
+def fetch_swift_codes_by_country(country_iso2: str, db: Session) -> list[SwiftCode]:
+    """
+    Fetch all SWIFT codes (headquarters and branches) for a given country.
+    """
+    logger.info(f"Fetching SWIFT codes for country ISO2: {country_iso2}")
+    swift_codes = db.query(SwiftCode).filter(SwiftCode.country_iso2 == country_iso2).all()
+    if not swift_codes:
+        logger.warning(f"No SWIFT codes found for country ISO2: {country_iso2}")
+        raise HTTPException(status_code=404, detail="No SWIFT codes found for this country")
+    logger.info(f"Found {len(swift_codes)} SWIFT codes for country with ISO2: {country_iso2}")
+    return swift_codes
+
+
+def construct_country_swift_code_response(
+    country_iso2: str, country_name: str, swift_codes: list
+) -> CountrySwiftCodesResponse:
+    """
+    Construct the response with country details and associated SWIFT codes.
+    """
+    logger.info(f"Constructing response for country ISO2: {country_iso2}")
+    return CountrySwiftCodesResponse(
+        countryISO2=country_iso2,
+        countryName=country_name,
+        swiftCodes=[
+            SwiftCodeEntry(
+                address=code.address,
+                bankName=code.name,
+                countryISO2=country_iso2,
+                isHeadquarter=code.is_headquarter,
+                swiftCode=code.swift_code,
+            )
+            for code in swift_codes
+        ],
+    )
+
+
+@router.get("/country/{country_iso2code}", response_model=CountrySwiftCodesResponse)
+def get_swift_codes_by_country(country_iso2code: str, db: Session = Depends(yield_db)):
+    """
+    Endpoint to get all SWIFT codes for a specific country (both HQ and branches).
+    """
+    swift_codes = fetch_swift_codes_by_country(country_iso2code, db)
+    country_name = swift_codes[0].country_name
+    return construct_country_swift_code_response(country_iso2code, country_name, swift_codes)
