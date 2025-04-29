@@ -16,6 +16,7 @@ def sample_data():
             "COUNTRY NAME": ["united states", "united states", "united kingdom", "united kingdom"],
             "TIME ZONE": ["EST", "EST", "GMT", "GMT"],
             "NAME": ["Bank A", "Bank A", "Bank B", "Bank B"],
+            "ADDRESS": ["address a", "address b", "address c", "address d"],
         }
     )
 
@@ -28,6 +29,7 @@ def expected_data():
             "COUNTRY ISO2 CODE": ["US", "US", "GB", "GB"],
             "COUNTRY NAME": ["UNITED STATES", "UNITED STATES", "UNITED KINGDOM", "UNITED KINGDOM"],
             "NAME": ["Bank A", "Bank A", "Bank B", "Bank B"],
+            "ADDRESS": ["address a", "address b", "address c", "address d"],
             "Is Headquarters": [True, False, True, False],
             "Headquarters CODE": ["BANKUS33XXX", "BANKUS33XXX", "BANKGB22XXX", "BANKGB22XXX"],
         }
@@ -57,6 +59,7 @@ def batch_swift_data():
         {
             "SWIFT CODE": [f"CODE{i:03d}" for i in range(105)],
             "NAME": ["Bank"] * 105,
+            "ADDRESS": ["Address"] * 105,
             "COUNTRY ISO2 CODE": ["US"] * 105,
             "COUNTRY NAME": ["United States"] * 105,
             "Is Headquarters": [False] * 105,
@@ -97,6 +100,7 @@ def test_save_swift_codes_success(mock_db_session, tmp_path, sample_data):
     for entry, (_, row) in zip(db_entries, parsed_data.iterrows()):
         assert entry.swift_code == row["SWIFT CODE"]
         assert entry.name == row["NAME"]
+        assert entry.address == row["ADDRESS"]
         assert entry.country_iso2 == row["COUNTRY ISO2 CODE"]
         assert entry.country_name == row["COUNTRY NAME"]
         assert entry.is_headquarter == row["Is Headquarters"]

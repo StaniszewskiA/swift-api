@@ -7,6 +7,7 @@ class SwiftCode(Base):
 
     swift_code = Column(String, primary_key=True, index=True)
     name = Column(String)
+    address = Column(String)
     country_iso2 = Column(String, index=True)
     country_name = Column(String)
     is_headquarter = Column(Boolean, default=False)
