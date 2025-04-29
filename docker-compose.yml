@@ -1,7 +1,21 @@
 services:
+  api:
+    build: .
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+    volumes:
+      - .:/app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://swift_user:swift_pass@postgres:5432/swift_db
+    working_dir: /app
+    restart: unless-stopped
+
   postgres:
     image: postgres:15
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: swift_user
       POSTGRES_PASSWORD: swift_pass
