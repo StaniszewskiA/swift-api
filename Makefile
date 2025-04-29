@@ -13,6 +13,7 @@ test: ## Run tests
 	poetry run ruff check
 
 test-coverage: ## Run tests and calculate test coverage
+	@if exist .tmp_coverage_files rmdir /s /q .tmp_coverage_files
 	-@mkdir .tmp_coverage_files
-	poetry run pytest --cov=app tests
+	poetry run pytest --cov=app tests -W always
 	-@rmdir /s /q .tmp_coverage_files

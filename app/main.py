@@ -1,18 +1,18 @@
-import logging
+from contextlib import asynccontextmanager
 from app.models.models import SwiftCode
+from app.api.v1 import swift_code
 from fastapi import FastAPI
 
+from .core.logger import logger
 from .core.database import yield_db, Base, engine
 from .services.swift_code_parser import parse_swift_file, save_swift_codes
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
-
 app = FastAPI()
+app.include_router(swift_code.router)
 
 
-@app.on_event("startup")
-def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     logger.info("Starting the app")
     Base.metadata.create_all(bind=engine)
     db = next(yield_db())
@@ -27,6 +27,12 @@ def startup():
         logger.info("SWIFT codes already exist in the database. Skipping parsing and saving.")
 
     logger.info("Database connection established")
+
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(swift_code.router)
 
 
 @app.get("/")
