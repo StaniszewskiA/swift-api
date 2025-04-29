@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
     # Seeding the database
     if not db.query(SwiftCode).first():
         logger.info("No data found in the database. Seeding the DB with provided .xlsx file.")
-        parsed_input = parse_swift_file(r"app\data\Interns_2025_SWIFT_CODES.xlsx")
+        parsed_input = parse_swift_file("/app/app/data/Interns_2025_SWIFT_CODES.xlsx")
         save_swift_codes(parsed_input, db)
         logger.info("SWIFT codes parsed and saved to the database.")
     else:
