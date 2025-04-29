@@ -176,3 +176,48 @@ def test_get_swift_codes_by_country_not_found(mock_db_class, mock_session, clien
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Not Found"
+
+
+@patch("app.core.database.SessionLocal", autospec=True)
+def test_create_swift_code_invalid_input(mock_db_class, mock_session, client):
+    mock_db_class.return_value = mock_session
+
+    invalid_payload = {
+        "country_iso2": "PL",
+        "country_name": "Poland",
+        "is_headquarter": True,
+        "headquarters_code": None,
+        "address": "Add123",
+    }
+
+    response = client.post("/v1/swift-codes", json=invalid_payload)
+    assert response.status_code == 422  # Unprocessable Entity
+
+
+@patch("app.core.database.SessionLocal", autospec=True)
+def test_delete_swift_code_success(mock_db_class, mock_session, client):
+    mock_db_class.return_value = mock_session
+
+    mock_instance = MagicMock()
+    mock_session.query.return_value.filter.return_value.first.return_value = mock_instance
+
+    response = client.delete("/v1/swift-codes/ABC123")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "SWIFT code ABC123 deleted successfully"
+    mock_session.delete.assert_called_once_with(mock_instance)
+    mock_session.commit.assert_called_once()
+
+
+@patch("app.core.database.SessionLocal", autospec=True)
+def test_delete_swift_code_not_found(mock_db_class, mock_session, client):
+    mock_db_class.return_value = mock_session
+
+    mock_session.query.return_value.filter.return_value.first.return_value = None
+
+    response = client.delete("/v1/swift-codes/DOESNOTEXIST")
+
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"] == "SWIFT code not found"

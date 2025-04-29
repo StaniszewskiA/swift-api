@@ -1,3 +1,3 @@
-from .swift_code import Branch, SwiftCodeResponse, SwiftCodeEntry, CountrySwiftCodesResponse
+from .swift_code_schema import Branch, SwiftCodeResponse, SwiftCodeEntry, CountrySwiftCodesResponse, SwiftCodeCreate
 
-__all__ = ["Branch", "SwiftCodeResponse", "SwiftCodeEntry", "CountrySwiftCodesResponse"]
+__all__ = ["Branch", "SwiftCodeResponse", "SwiftCodeEntry", "CountrySwiftCodesResponse", "SwiftCodeCreate"]

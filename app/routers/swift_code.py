@@ -1,5 +1,5 @@
-from app.schemas.swift_code import CountrySwiftCodesResponse, SwiftCodeResponse, SwiftCodeEntry
-from fastapi import APIRouter, Depends, HTTPException
+from app.schemas.swift_code_schema import SwiftCodeCreate, CountrySwiftCodesResponse, SwiftCodeEntry, SwiftCodeResponse
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import yield_db
 from app.models.models import SwiftCode
@@ -123,3 +123,54 @@ def get_swift_codes_by_country(country_iso2code: str, db: Session = Depends(yiel
     swift_codes = fetch_swift_codes_by_country(country_iso2code, db)
     country_name = swift_codes[0].country_name
     return construct_country_swift_code_response(country_iso2code, country_name, swift_codes)
+
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
+def add_swift_code(swift_data: SwiftCodeCreate, db: Session = Depends(yield_db)):
+    existing = db.query(SwiftCode).filter(SwiftCode.swift_code == swift_data.swiftCode).first()
+    if existing:
+        logger.warning(f"SWIFT code {swift_data.swiftCode} already exists in the database")
+        raise HTTPException(status_code=409, detail="SWIFT code already exists")
+
+    new_entry = SwiftCode(
+        address=swift_data.address,
+        name=swift_data.bankName,
+        country_iso2=swift_data.countryISO2.upper(),
+        country_name=swift_data.countryName,
+        is_headquarter=swift_data.isHeadquarter,
+        swift_code=swift_data.swiftCode,
+        headquarters_code=None if swift_data.isHeadquarter else "",
+    )
+
+    logger.info(f"Adding SWIFT code {swift_data.swiftCode} to the database")
+
+    db.add(new_entry)
+    try:
+        db.commit()
+        db.refresh(new_entry)
+        logger.info(f"SWIFT code {swift_data.swiftCode} added successfully")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error while adding SWIFT code {swift_data.swiftCode}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add SWIFT code to the database")
+
+    return {"message": "SWIFT code added successfully", "swiftCode": new_entry.swift_code}
+
+
+@router.delete("/{swift_code}", response_model=dict)
+def delete_swift_code(swift_code: str, db: Session = Depends(yield_db)):
+    entry_to_delete = db.query(SwiftCode).filter(SwiftCode.swift_code == swift_code).first()
+
+    if not entry_to_delete:
+        logger.warning(f"SWIFT code {swift_code} not found in the database.")
+        raise HTTPException(status_code=404, detail="SWIFT code not found")
+
+    db.delete(entry_to_delete)
+    try:
+        db.commit()
+        logger.info(f"SWIFT code {swift_code} deleted successfully")
+        return {"message": f"SWIFT code {swift_code} deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error while deleting SWIFT code {swift_code}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete SWIFT code from the database")
