@@ -43,7 +43,7 @@ jobs:
 
       - name: Run tests
         env:
-          DATABASE_URL: postgresql+psycopg2://swift_user:swift_pass@localhost:5432/swift_db
+          DATABASE_URL: postgresql+asyncpg://swift_user:swift_pass@postgres:5432/swift_db
         run: |
           poetry run pytest
 
