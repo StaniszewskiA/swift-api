@@ -1,4 +1,6 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.exc import SQLAlchemyError
 from fastapi import HTTPException
 from app.models.models import SwiftCode
 from app.schemas.swift_code_schema import SwiftCodeCreate, SwiftCodeResponse, CountrySwiftCodesResponse, SwiftCodeEntry
@@ -6,18 +8,20 @@ from app.core.logger import logger
 from typing import List
 
 
-def fetch_swift_code_from_db(swift_code: str, db: Session) -> SwiftCode:
+async def fetch_swift_code_from_db(swift_code: str, db: AsyncSession) -> SwiftCode:
     logger.info(f"Fetching details for SWIFT code: {swift_code}")
-    swift_details = db.query(SwiftCode).filter(SwiftCode.swift_code == swift_code).first()
+    result = await db.execute(select(SwiftCode).where(SwiftCode.swift_code == swift_code))
+    swift_details = result.scalars().first()
     if not swift_details:
         logger.warning(f"SWIFT code {swift_code} not found")
         raise HTTPException(status_code=404, detail="SWIFT code not found")
     return swift_details
 
 
-def fetch_branches_for_hq(swift_code: str, db: Session) -> List[dict]:
+async def fetch_branches_for_hq(swift_code: str, db: AsyncSession) -> List[dict]:
     logger.info(f"Fetching branches for HQ SWIFT code: {swift_code}")
-    branches = db.query(SwiftCode).filter(SwiftCode.headquarters_code == swift_code).all()
+    result = await db.execute(select(SwiftCode).where(SwiftCode.headquarters_code == swift_code))
+    branches = result.scalars().all()
     return [
         {
             "address": branch.address,
@@ -43,16 +47,17 @@ def construct_swift_code_response(swift_details: SwiftCode, branch_details: List
     )
 
 
-def get_swift_code_details(swift_code: str, db: Session) -> SwiftCodeResponse:
-    swift_details = fetch_swift_code_from_db(swift_code, db)
+async def get_swift_code_details(swift_code: str, db: AsyncSession) -> SwiftCodeResponse:
+    swift_details = await fetch_swift_code_from_db(swift_code, db)
     if swift_details.is_headquarter:
-        branches = fetch_branches_for_hq(swift_code, db)
+        branches = await fetch_branches_for_hq(swift_code, db)
         return construct_swift_code_response(swift_details, branches)
     return construct_swift_code_response(swift_details)
 
 
-def fetch_swift_codes_by_country(country_iso2: str, db: Session) -> List[SwiftCode]:
-    swift_codes = db.query(SwiftCode).filter(SwiftCode.country_iso2 == country_iso2.upper()).all()
+async def fetch_swift_codes_by_country(country_iso2: str, db: AsyncSession) -> List[SwiftCode]:
+    result = await db.execute(select(SwiftCode).where(SwiftCode.country_iso2 == country_iso2.upper()))
+    swift_codes = result.scalars().all()
     if not swift_codes:
         raise HTTPException(status_code=404, detail="No SWIFT codes found for this country")
     return swift_codes
@@ -77,8 +82,9 @@ def construct_country_swift_code_response(
     )
 
 
-def add_swift_code(swift_data: SwiftCodeCreate, db: Session) -> dict:
-    existing = db.query(SwiftCode).filter(SwiftCode.swift_code == swift_data.swiftCode).first()
+async def add_swift_code(swift_data: SwiftCodeCreate, db: AsyncSession) -> dict:
+    result = await db.execute(select(SwiftCode).where(SwiftCode.swift_code == swift_data.swiftCode))
+    existing = result.scalars().first()
     if existing:
         raise HTTPException(status_code=409, detail="SWIFT code already exists")
 
@@ -94,38 +100,39 @@ def add_swift_code(swift_data: SwiftCodeCreate, db: Session) -> dict:
 
     db.add(new_entry)
     try:
-        db.commit()
-        db.refresh(new_entry)
-    except Exception as e:
-        db.rollback()
+        await db.commit()
+        await db.refresh(new_entry)
+    except SQLAlchemyError as e:
+        await db.rollback()
         logger.error(f"Error adding SWIFT code {swift_data.swiftCode}: {e}")
         raise HTTPException(status_code=500, detail="Failed to add SWIFT code")
 
     return {"message": "SWIFT code added successfully", "swiftCode": new_entry.swift_code}
 
 
-def delete_swift_code(swift_code: str, db: Session):
-    entry_to_delete = db.query(SwiftCode).filter(SwiftCode.swift_code == swift_code).first()
+async def delete_swift_code(swift_code: str, db: AsyncSession):
+    result = await db.execute(select(SwiftCode).where(SwiftCode.swift_code == swift_code))
+    entry_to_delete = result.scalars().first()
     if not entry_to_delete:
         raise HTTPException(status_code=404, detail="SWIFT code not found")
 
-    db.delete(entry_to_delete)
+    await db.delete(entry_to_delete)
     try:
-        db.commit()
+        await db.commit()
         return {"message": f"SWIFT code {swift_code} deleted successfully"}
-    except Exception as e:
-        db.rollback()
+    except SQLAlchemyError as e:
+        await db.rollback()
         logger.error(f"Error deleting SWIFT code {swift_code}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete SWIFT code")
 
 
-def save_swift_codes_batch(db: Session, swift_code_entries: list, batch_size: int = 100) -> None:
+async def save_swift_codes_batch(db: AsyncSession, swift_code_entries: list, batch_size: int = 100) -> None:
     """
     Saves a batch of SwiftCode entries to the database.
 
     Parameters
     ----------
-    db : SQLAlchemy session
+    db : AsyncSession
         Database session to use for saving data
     swift_code_entries : list
         List of SwiftCode objects to save
@@ -138,17 +145,17 @@ def save_swift_codes_batch(db: Session, swift_code_entries: list, batch_size: in
     """
     for i in range(0, len(swift_code_entries), batch_size):
         logger.info(f"Inserting batch {i // batch_size + 1} of size {batch_size}.")
-        db.bulk_save_objects(swift_code_entries[i : i + batch_size])
-    db.commit()
+        await db.add_all(swift_code_entries[i : i + batch_size])
+    await db.commit()
 
 
-def save_swift_codes_to_db(db: Session, swift_code_entries: list) -> None:
+async def save_swift_codes_to_db(db: AsyncSession, swift_code_entries: list) -> None:
     """
     Saves the parsed SWIFT codes from a list of SwiftCode objects to the database.
 
     Parameters
     ----------
-    db : Session
+    db : AsyncSession
         Database session
     swift_code_entries : list
         List of SwiftCode objects to save
@@ -158,9 +165,7 @@ def save_swift_codes_to_db(db: Session, swift_code_entries: list) -> None:
     None
     """
     try:
-        save_swift_codes_batch(db, swift_code_entries)
-    except Exception as ex:
-        db.rollback()
+        await save_swift_codes_batch(db, swift_code_entries)
+    except SQLAlchemyError as ex:
+        await db.rollback()
         raise ex
-    finally:
-        db.close()
