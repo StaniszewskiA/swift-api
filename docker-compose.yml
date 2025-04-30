@@ -9,7 +9,7 @@ services:
     depends_on:
       - postgres
     environment:
-      DATABASE_URL: postgresql+asyncpg://swift_user:swift_pass@postgres:5432/swift_db
+      DATABASE_URL: postgresql://swift_user:swift_pass@postgres:5432/swift_db
     working_dir: /app
     restart: unless-stopped
 

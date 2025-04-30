@@ -11,8 +11,6 @@ WORKDIR /app
 
 COPY pyproject.toml poetry.lock ruff.toml /app/
 
-COPY /data/Interns_2025_SWIFT_CODES.xlsx ./
-
 RUN poetry install --no-root
 
 COPY . /app
