@@ -1,14 +1,17 @@
 from sqlalchemy import Column, String, Boolean
-from app.core.database import Base
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.asyncio import AsyncAttrs
+
+Base = declarative_base(cls=AsyncAttrs)
 
 
 class SwiftCode(Base):
     __tablename__ = "swift_codes"
 
     swift_code = Column(String, primary_key=True, index=True)
-    name = Column(String)
-    address = Column(String)
-    country_iso2 = Column(String, index=True)
-    country_name = Column(String)
+    name = Column(String, nullable=True)
+    address = Column(String, nullable=True)
+    country_iso2 = Column(String, index=True, nullable=True)
+    country_name = Column(String, nullable=True)
     is_headquarter = Column(Boolean, default=False)
-    headquarters_code = Column(String)
+    headquarters_code = Column(String, nullable=True)

@@ -2,7 +2,7 @@ import logging
 import pandas as pd
 from app.crud.swift_code_crud import save_swift_codes_to_db
 from app.models.models import SwiftCode
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -99,7 +99,7 @@ def create_swift_code_entries(df: pd.DataFrame) -> list[SwiftCode]:
     ]
 
 
-def save_swift_codes(df: pd.DataFrame, db: Session) -> None:
+async def save_swift_codes(df: pd.DataFrame, db: AsyncSession) -> None:
     """
     Saves the parsed SWIFT codes from a DataFrame to the database.
 
@@ -116,7 +116,7 @@ def save_swift_codes(df: pd.DataFrame, db: Session) -> None:
         validate_swift_file_columns(df)
         swift_code_entries = create_swift_code_entries(df)
         logger.info("Started saving SWIFT codes to the database")
-        save_swift_codes_to_db(db, swift_code_entries)
+        await save_swift_codes_to_db(db, swift_code_entries)
         logger.info("Finished saving SWIFT codes to the database")
     except Exception as ex:
         logger.error(f"Error saving data to the database: {ex}")
