@@ -41,6 +41,14 @@ jobs:
           pip install poetry
           poetry install
 
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          sleep 10  
+          until pg_isready -h localhost -p 5432; do
+            echo "Waiting for PostgreSQL to be ready..."
+            sleep 2
+          done
+
       - name: Install pytest-asyncio
         run: poetry add pytest-asyncio
 
