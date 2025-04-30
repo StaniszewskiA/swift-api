@@ -41,6 +41,9 @@ jobs:
           pip install poetry
           poetry install
 
+      - name: Install pytest-asyncio
+        run: poetry add pytest-asyncio
+
       - name: Run tests
         env:
           DATABASE_URL: postgresql+asyncpg://swift_user:swift_pass@postgres:5432/swift_db
