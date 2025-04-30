@@ -1,22 +1,23 @@
 import pytest
-from unittest.mock import AsyncMock, patch
-from app.core.database import async_yield_db
+from unittest.mock import MagicMock, patch
+from app.core.database import yield_db, SessionLocal
 
 
 @pytest.fixture
 def mock_session():
-    mock_db = AsyncMock()
-    mock_db.__aenter__.return_value = mock_db
-    mock_db.__aexit__.return_value = None
+    mock_db = MagicMock(spec=SessionLocal)
+    mock_db.close = MagicMock()
     yield mock_db
+    mock_db.close.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_yield_db(mock_session):
-    with patch("app.core.database.AsyncSessionLocal", return_value=mock_session):
-        db_generator = async_yield_db()
-        db = await db_generator.__anext__()
+def test_yield_db(mock_session):
+    with patch("app.core.database.SessionLocal", return_value=mock_session):
+        db_generator = yield_db()
+        db = next(db_generator)
 
         assert db is mock_session
 
-        await db_generator.aclose()
+        db_generator.close()
+
+        mock_session.close.assert_called_once()
