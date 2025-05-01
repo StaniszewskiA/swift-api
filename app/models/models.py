@@ -1,11 +1,8 @@
 from sqlalchemy import Column, String, Boolean
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.ext.asyncio import AsyncAttrs
-
-Base = declarative_base(cls=AsyncAttrs)
+from app.core.database import AsyncBase
 
 
-class SwiftCode(Base):
+class SwiftCode(AsyncBase):
     __tablename__ = "swift_codes"
 
     swift_code = Column(String, primary_key=True, index=True)

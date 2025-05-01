@@ -24,7 +24,9 @@ async def create_tables():
 
 async def seed_swift_codes():
     logger.info("Checking if SWIFT codes data exists...")
-    file_path = os.path.join(os.path.dirname(__file__), "data", "Interns_2025_SWIFT_CODES.xlsx")
+    file_path = os.environ.get(
+        "SWIFT_CODES_PATH", os.path.join(os.path.dirname(__file__), "data", "Interns_2025_SWIFT_CODES.xlsx")
+    )
 
     async for db in async_yield_db():
         try:
@@ -42,7 +44,7 @@ async def seed_swift_codes():
                     logger.warning(f"No data found in SWIFT codes file: {file_path}")
             else:
                 logger.info("SWIFT codes already exist in database, skipping seed")
-            return
+            break
         except Exception as e:
             logger.error(f"Error checking or seeding database: {e}")
             raise
