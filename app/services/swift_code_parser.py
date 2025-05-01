@@ -1,11 +1,8 @@
-import logging
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import SwiftCode
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 
 def parse_swift_file(file_path: str) -> None:
@@ -22,7 +19,7 @@ def parse_swift_file(file_path: str) -> None:
     None
     """
     try:
-        # Time zone is redundant is we know the city.
+        # Time zone is redundant if we know the city.
         df = pd.read_excel(file_path, usecols=["SWIFT CODE", "NAME", "ADDRESS", "COUNTRY ISO2 CODE", "COUNTRY NAME"])
 
         for col in ("COUNTRY ISO2 CODE", "COUNTRY NAME"):
@@ -106,8 +103,7 @@ async def save_swift_codes(df: pd.DataFrame, db: AsyncSession) -> None:
             )
             swift_codes.append(swift_code)
 
-        db.add_all(swift_codes)
-
+        await db.add_all(swift_codes)
         await db.commit()
 
         logger.info(f"Successfully saved {len(df)} SWIFT codes to database")

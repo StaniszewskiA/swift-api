@@ -1,9 +1,11 @@
 services:
   api:
-    build: .
+    build: 
+      context: ..
+      dockerfile: ./docker/Dockerfile
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     volumes:
-      - .:/app
+      - ..:/app
     ports:
       - "8080:8080"
     depends_on:
