@@ -1,7 +1,5 @@
 import logging
 import pandas as pd
-from app.crud.swift_code_crud import save_swift_codes_to_db
-from app.models.models import SwiftCode
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -71,42 +69,16 @@ def validate_swift_file_columns(df: pd.DataFrame) -> None:
         raise KeyError(f"Missing required columns: {', '.join(missing_columns)}")
 
 
-def create_swift_code_entries(df: pd.DataFrame) -> list[SwiftCode]:
-    """
-    Creates a list of SwiftCode objects from the DataFrame.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing the parsed SWIFT code data
-
-    Returns
-    -------
-    list
-        List of SwiftCode objects
-    """
-    return [
-        SwiftCode(
-            swift_code=row["SWIFT CODE"],
-            name=row.get("NAME", ""),
-            address=row.get("ADDRESS", ""),
-            country_iso2=row.get("COUNTRY ISO2 CODE", ""),
-            country_name=row.get("COUNTRY NAME", ""),
-            is_headquarter=row.get("Is Headquarters", False),
-            headquarters_code=row.get("Headquarters CODE", ""),
-        )
-        for _, row in df.iterrows()
-    ]
-
-
 async def save_swift_codes(df: pd.DataFrame, db: AsyncSession) -> None:
     """
-    Saves the parsed SWIFT codes from a DataFrame to the database.
+    Saves the parsed SWIFT codes from a DataFrame to the database using pandas to_sql.
 
     Parameters
     ----------
         df : pd.DataFrame
             DataFrame containing the parsed SWIFT code data
+        db : AsyncSession
+            Database session
 
     Returns
     -------
@@ -114,10 +86,29 @@ async def save_swift_codes(df: pd.DataFrame, db: AsyncSession) -> None:
     """
     try:
         validate_swift_file_columns(df)
-        swift_code_entries = create_swift_code_entries(df)
+
+        df_to_save = df.rename(
+            columns={
+                "SWIFT CODE": "swift_code",
+                "NAME": "name",
+                "ADDRESS": "address",
+                "COUNTRY ISO2 CODE": "country_iso2",
+                "COUNTRY NAME": "country_name",
+                "Is Headquarters": "is_headquarter",
+                "Headquarters CODE": "headquarters_code",
+            }
+        )
+
         logger.info("Started saving SWIFT codes to the database")
-        await save_swift_codes_to_db(db, swift_code_entries)
-        logger.info("Finished saving SWIFT codes to the database")
+
+        conn = await db.connection()
+        await conn.run_sync(
+            lambda sync_conn: df_to_save.to_sql(
+                "swift_codes", sync_conn, if_exists="append", index=False, method="multi"
+            )
+        )
+
+        logger.info(f"Successfully saved {len(df)} SWIFT codes to database")
     except Exception as ex:
         logger.error(f"Error saving data to the database: {ex}")
         raise

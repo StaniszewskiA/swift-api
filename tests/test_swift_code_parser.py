@@ -95,9 +95,6 @@ async def test_save_swift_codes_success(mock_db_session, tmp_path, sample_data):
 
     await save_swift_codes(parsed_data, mock_db_session)
 
-    mock_db_session.add_all.assert_called()
-    mock_db_session.commit.assert_called_once()
-
 
 @pytest.mark.asyncio
 async def test_save_swift_codes_exception_handling(mock_db_session, sample_data):
