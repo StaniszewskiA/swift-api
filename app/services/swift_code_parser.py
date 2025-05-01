@@ -2,6 +2,8 @@ import logging
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.models import SwiftCode
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -87,28 +89,29 @@ async def save_swift_codes(df: pd.DataFrame, db: AsyncSession) -> None:
     try:
         validate_swift_file_columns(df)
 
-        df_to_save = df.rename(
-            columns={
-                "SWIFT CODE": "swift_code",
-                "NAME": "name",
-                "ADDRESS": "address",
-                "COUNTRY ISO2 CODE": "country_iso2",
-                "COUNTRY NAME": "country_name",
-                "Is Headquarters": "is_headquarter",
-                "Headquarters CODE": "headquarters_code",
-            }
-        )
-
         logger.info("Started saving SWIFT codes to the database")
 
-        conn = await db.connection()
-        await conn.run_sync(
-            lambda sync_conn: df_to_save.to_sql(
-                "swift_codes", sync_conn, if_exists="append", index=False, method="multi"
+        records = df.to_dict("records")
+
+        swift_codes = []
+        for record in records:
+            swift_code = SwiftCode(
+                swift_code=record["SWIFT CODE"],
+                name=record["NAME"],
+                address=record["ADDRESS"],
+                country_iso2=record["COUNTRY ISO2 CODE"],
+                country_name=record["COUNTRY NAME"],
+                is_headquarter=record["Is Headquarters"],
+                headquarters_code=record["Headquarters CODE"],
             )
-        )
+            swift_codes.append(swift_code)
+
+        db.add_all(swift_codes)
+
+        await db.commit()
 
         logger.info(f"Successfully saved {len(df)} SWIFT codes to database")
     except Exception as ex:
+        await db.rollback()
         logger.error(f"Error saving data to the database: {ex}")
         raise

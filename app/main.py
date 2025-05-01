@@ -78,5 +78,4 @@ app.include_router(swift_code.router)
 
 @app.get("/")
 async def read_root():
-    """Root endpoint that returns a welcome message."""
     return {"message": "Hello, World!"}
