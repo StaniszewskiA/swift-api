@@ -1,15 +1,18 @@
 services:
   api:
-    build: .
+    build: 
+      context: ..
+      dockerfile: ./docker/Dockerfile
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     volumes:
-      - .:/app
+      - ..:/app
     ports:
       - "8080:8080"
     depends_on:
       - postgres
     environment:
       DATABASE_URL: postgresql+asyncpg://swift_user:swift_pass@postgres:5432/swift_db
+      SWIFT_CODES_PATH: /app/app/data/Interns_2025_SWIFT_CODES.xlsx  
     working_dir: /app
     restart: unless-stopped
 
