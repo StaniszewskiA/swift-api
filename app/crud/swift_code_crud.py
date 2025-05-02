@@ -1,3 +1,4 @@
+import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -8,54 +9,17 @@ from app.core.logger import logger
 from typing import List
 
 
-async def fetch_swift_code_from_db(swift_code: str, db: AsyncSession) -> SwiftCode:
-    logger.info(f"Fetching details for SWIFT code: {swift_code}")
-    result = await db.execute(select(SwiftCode).where(SwiftCode.swift_code == swift_code))
-    swift_details = result.scalars().first()
-    if not swift_details:
-        logger.warning(f"SWIFT code {swift_code} not found")
-        raise HTTPException(status_code=404, detail="SWIFT code not found")
-    return swift_details
-
-
-async def fetch_branches_for_hq(swift_code: str, db: AsyncSession) -> List[dict]:
-    logger.info(f"Fetching branches for HQ SWIFT code: {swift_code}")
-    result = await db.execute(select(SwiftCode).where(SwiftCode.headquarters_code == swift_code))
-    branches = result.scalars().all()
-    return [
-        {
-            "address": branch.address,
-            "bankName": branch.name,
-            "countryISO2": branch.country_iso2,
-            "countryName": branch.country_name,
-            "isHeadquarter": branch.is_headquarter,
-            "swiftCode": branch.swift_code,
-        }
-        for branch in branches
-    ]
-
-
-def construct_swift_code_response(swift_details: SwiftCode, branch_details: List[dict] = None) -> SwiftCodeResponse:
-    return SwiftCodeResponse(
-        address=swift_details.address,
-        bankName=swift_details.name,
-        countryISO2=swift_details.country_iso2,
-        countryName=swift_details.country_name,
-        isHeadquarter=swift_details.is_headquarter,
-        swiftCode=swift_details.swift_code,
-        branches=branch_details or [],
-    )
-
-
 async def get_swift_code_details(swift_code: str, db: AsyncSession) -> SwiftCodeResponse:
-    swift_details = await fetch_swift_code_from_db(swift_code, db)
+    """Retrieve details of a SWIFT code."""
+    swift_details = await _fetch_swift_code_from_db(swift_code, db)
     if swift_details.is_headquarter:
-        branches = await fetch_branches_for_hq(swift_code, db)
-        return construct_swift_code_response(swift_details, branches)
-    return construct_swift_code_response(swift_details)
+        branches = await _fetch_branches_for_hq(swift_code, db)
+        return _construct_swift_code_response(swift_details, branches)
+    return _construct_swift_code_response(swift_details)
 
 
 async def fetch_swift_codes_by_country(country_iso2: str, db: AsyncSession) -> List[SwiftCode]:
+    """Fetch all SWIFT codes for a given country."""
     result = await db.execute(select(SwiftCode).where(SwiftCode.country_iso2 == country_iso2.upper()))
     swift_codes = result.scalars().all()
     if not swift_codes:
@@ -66,6 +30,7 @@ async def fetch_swift_codes_by_country(country_iso2: str, db: AsyncSession) -> L
 def construct_country_swift_code_response(
     country_iso2: str, country_name: str, swift_codes: List[SwiftCode]
 ) -> CountrySwiftCodesResponse:
+    """Construct a response containing SWIFT codes for a specific country."""
     return CountrySwiftCodesResponse(
         countryISO2=country_iso2,
         countryName=country_name,
@@ -83,6 +48,7 @@ def construct_country_swift_code_response(
 
 
 async def add_swift_code(swift_data: SwiftCodeCreate, db: AsyncSession) -> dict:
+    """Add a new SWIFT code to the database."""
     result = await db.execute(select(SwiftCode).where(SwiftCode.swift_code == swift_data.swiftCode))
     existing = result.scalars().first()
     if existing:
@@ -111,6 +77,7 @@ async def add_swift_code(swift_data: SwiftCodeCreate, db: AsyncSession) -> dict:
 
 
 async def delete_swift_code(swift_code: str, db: AsyncSession):
+    """Delete a SWIFT code from the database."""
     result = await db.execute(select(SwiftCode).where(SwiftCode.swift_code == swift_code))
     entry_to_delete = result.scalars().first()
     if not entry_to_delete:
@@ -126,46 +93,97 @@ async def delete_swift_code(swift_code: str, db: AsyncSession):
         raise HTTPException(status_code=500, detail="Failed to delete SWIFT code")
 
 
-async def save_swift_codes_batch(db: AsyncSession, swift_code_entries: list, batch_size: int = 100) -> None:
+async def save_swift_codes(df: pd.DataFrame, db: AsyncSession) -> None:
     """
-    Saves a batch of SwiftCode entries to the database.
-
-    Parameters
-    ----------
-    db : AsyncSession
-        Database session to use for saving data
-    swift_code_entries : list
-        List of SwiftCode objects to save
-    batch_size : int, optional
-        Number of records to insert in each batch (default is 100)
-
-    Returns
-    -------
-    None
-    """
-    for i in range(0, len(swift_code_entries), batch_size):
-        logger.info(f"Inserting batch {i // batch_size + 1} of size {batch_size}.")
-        await db.add_all(swift_code_entries[i : i + batch_size])
-    await db.commit()
-
-
-async def save_swift_codes_to_db(db: AsyncSession, swift_code_entries: list) -> None:
-    """
-    Saves the parsed SWIFT codes from a list of SwiftCode objects to the database.
-
-    Parameters
-    ----------
-    db : AsyncSession
-        Database session
-    swift_code_entries : list
-        List of SwiftCode objects to save
-
-    Returns
-    -------
-    None
+    Saves the parsed SWIFT codes from a DataFrame to the database using pandas to_sql.
     """
     try:
-        await save_swift_codes_batch(db, swift_code_entries)
-    except SQLAlchemyError as ex:
+        _validate_swift_file_columns(df)
+
+        logger.info("Started saving SWIFT codes to the database")
+
+        records = df.to_dict("records")
+
+        swift_codes = []
+        for record in records:
+            swift_code = SwiftCode(
+                swift_code=record["SWIFT CODE"],
+                name=record["NAME"],
+                address=record["ADDRESS"],
+                country_iso2=record["COUNTRY ISO2 CODE"],
+                country_name=record["COUNTRY NAME"],
+                is_headquarter=record["Is Headquarters"],
+                headquarters_code=record["Headquarters CODE"],
+            )
+            swift_codes.append(swift_code)
+
+        db.add_all(swift_codes)
+        await db.commit()
+
+        logger.info(f"Successfully saved {len(df)} SWIFT codes to database")
+    except Exception as ex:
         await db.rollback()
-        raise ex
+        logger.error(f"Error saving data to the database: {ex}")
+        raise
+
+
+def _validate_swift_file_columns(df: pd.DataFrame) -> None:
+    """
+    Validates that the required columns are present in the DataFrame.
+    """
+    required_columns = [
+        "SWIFT CODE",
+        "NAME",
+        "ADDRESS",
+        "COUNTRY ISO2 CODE",
+        "COUNTRY NAME",
+        "Is Headquarters",
+        "Headquarters CODE",
+    ]
+
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        logger.error(f"Missing required columns: {', '.join(missing_columns)}")
+        raise KeyError(f"Missing required columns: {', '.join(missing_columns)}")
+
+
+async def _fetch_swift_code_from_db(swift_code: str, db: AsyncSession) -> SwiftCode:
+    """Fetch a SWIFT code from the database."""
+    logger.info(f"Fetching details for SWIFT code: {swift_code}")
+    result = await db.execute(select(SwiftCode).where(SwiftCode.swift_code == swift_code))
+    swift_details = result.scalars().first()
+    if not swift_details:
+        logger.warning(f"SWIFT code {swift_code} not found")
+        raise HTTPException(status_code=404, detail="SWIFT code not found")
+    return swift_details
+
+
+async def _fetch_branches_for_hq(swift_code: str, db: AsyncSession) -> List[dict]:
+    """Fetch branches for a headquarters SWIFT code."""
+    logger.info(f"Fetching branches for HQ SWIFT code: {swift_code}")
+    result = await db.execute(select(SwiftCode).where(SwiftCode.headquarters_code == swift_code))
+    branches = result.scalars().all()
+    return [
+        {
+            "address": branch.address,
+            "bankName": branch.name,
+            "countryISO2": branch.country_iso2,
+            "countryName": branch.country_name,
+            "isHeadquarter": branch.is_headquarter,
+            "swiftCode": branch.swift_code,
+        }
+        for branch in branches
+    ]
+
+
+def _construct_swift_code_response(swift_details: SwiftCode, branch_details: List[dict] = None) -> SwiftCodeResponse:
+    """Construct a response for a SWIFT code."""
+    return SwiftCodeResponse(
+        address=swift_details.address,
+        bankName=swift_details.name,
+        countryISO2=swift_details.country_iso2,
+        countryName=swift_details.country_name,
+        isHeadquarter=swift_details.is_headquarter,
+        swiftCode=swift_details.swift_code,
+        branches=branch_details or [],
+    )
