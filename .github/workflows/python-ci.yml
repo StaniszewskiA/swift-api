@@ -14,13 +14,27 @@ jobs:
 
     services:
       postgres:
-        image: postgres:14
+        image: postgres:15
         env:
           POSTGRES_USER: swift_user
           POSTGRES_PASSWORD: swift_pass
           POSTGRES_DB: swift_db
         ports:
           - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      test_postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: swift_user
+          POSTGRES_PASSWORD: swift_pass
+          POSTGRES_DB: test_swift_db
+        ports:
+          - 5433:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -43,14 +57,15 @@ jobs:
 
       - name: Wait for PostgreSQL to be ready
         run: |
-          sleep 10  
+          sleep 10
           until pg_isready -h localhost -p 5432; do
-            echo "Waiting for PostgreSQL to be ready..."
+            echo "Waiting for main PostgreSQL to be ready..."
             sleep 2
           done
-
-      - name: Install pytest-asyncio
-        run: poetry add pytest-asyncio
+          until pg_isready -h localhost -p 5433; do
+            echo "Waiting for test PostgreSQL to be ready..."
+            sleep 2
+          done
 
       - name: Run tests
         env:
