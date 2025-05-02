@@ -15,7 +15,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://swift_user:swift_pass@postgres:5432/swift_db
       SWIFT_CODES_PATH: /app/app/data/Interns_2025_SWIFT_CODES.xlsx  
       TEST_DB_HOST: test_postgres
-      TEST_DB_PORT: 5432 
+      TEST_DB_PORT: 5433
       TEST_DB_USER: swift_user
       TEST_DB_PASS: swift_pass
       TEST_DB_NAME: test_swift_db 
