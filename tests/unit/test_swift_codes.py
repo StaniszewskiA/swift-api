@@ -1,7 +1,7 @@
+from fastapi import HTTPException
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from sqlalchemy.exc import SQLAlchemyError
-from fastapi import HTTPException
 from app.crud.swift_code_crud import (
     get_swift_code_details,
     fetch_swift_codes_by_country,
@@ -36,7 +36,6 @@ def mock_db_session():
 
 @pytest.fixture
 def sample_swift_code():
-    """Create a sample SwiftCode object"""
     return SwiftCode(
         swift_code="TESTCODE123",
         name="Test Bank",
@@ -50,7 +49,6 @@ def sample_swift_code():
 
 @pytest.fixture
 def sample_branch_swift_code():
-    """Create a sample branch SwiftCode object"""
     return SwiftCode(
         swift_code="TESTCODE456",
         name="Test Bank Branch",
@@ -64,7 +62,6 @@ def sample_branch_swift_code():
 
 @pytest.fixture
 def sample_swift_code_create():
-    """Create a sample SwiftCodeCreate object"""
     return SwiftCodeCreate(
         address="123 New St",
         bankName="New Bank",
