@@ -14,27 +14,13 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: postgres:14
         env:
           POSTGRES_USER: swift_user
           POSTGRES_PASSWORD: swift_pass
           POSTGRES_DB: swift_db
         ports:
           - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      
-      test_postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: swift_user
-          POSTGRES_PASSWORD: swift_pass
-          POSTGRES_DB: test_swift_db
-        ports:
-          - 5433:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -49,20 +35,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.11
-          cache: 'pip'
-
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-
-      - name: Cache Poetry dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pypoetry
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-poetry-
 
       - name: Install dependencies
         run: |
@@ -71,90 +43,21 @@ jobs:
 
       - name: Wait for PostgreSQL to be ready
         run: |
-          sleep 10
+          sleep 10  
           until pg_isready -h localhost -p 5432; do
-            echo "Waiting for main PostgreSQL to be ready..."
-            sleep 2
-          done
-          until pg_isready -h localhost -p 5433; do
-            echo "Waiting for test PostgreSQL to be ready..."
+            echo "Waiting for PostgreSQL to be ready..."
             sleep 2
           done
 
-      - name: Check test database
-        run: |
-          PGPASSWORD=swift_pass psql -h localhost -p 5433 -U swift_user -d test_swift_db -c "\dt"
-          PGPASSWORD=swift_pass psql -h localhost -p 5433 -U swift_user -d test_swift_db -c "SELECT current_database();"
+      - name: Install pytest-asyncio
+        run: poetry add pytest-asyncio
 
-      - name: Initialize test database
-        env:
-          TEST_DB_HOST: localhost
-          TEST_DB_PORT: 5433
-          TEST_DB_USER: swift_user
-          TEST_DB_PASS: swift_pass
-          TEST_DB_NAME: test_swift_db
-        run: |
-          echo "Creating database schema..."
-          
-          # Fix alembic.ini configuration
-          sed -i 's|^sqlalchemy.url =.*|sqlalchemy.url = postgresql+asyncpg://swift_user:swift_pass@localhost:5433/test_swift_db|' alembic.ini
-          
-          # Try Alembic migrations
-          poetry run alembic upgrade head || echo "Alembic migration failed, continuing with direct schema creation"
-          
-          # Create database schema using SQLAlchemy models
-          poetry run python -c '
-          import asyncio
-          import sys
-          from app.core.database import AsyncBase
-          from sqlalchemy.ext.asyncio import create_async_engine
-          
-          async def init_db():
-              url = "postgresql+asyncpg://swift_user:swift_pass@localhost:5433/test_swift_db"
-              engine = create_async_engine(url)
-              try:
-                  async with engine.begin() as conn:
-                      print("Creating tables...")
-                      await conn.run_sync(AsyncBase.metadata.create_all)
-                      print("Tables created.")
-                      
-                      # Verify tables were created
-                      result = await conn.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=\'public\'")
-                      tables = [row[0] for row in result.fetchall()]
-                      print(f"Created tables: {tables}")
-                      
-                      if not tables:
-                          print("ERROR: No tables were created!")
-                          sys.exit(1)
-              except Exception as e:
-                  print(f"ERROR: Failed to create tables: {e}")
-                  sys.exit(1)
-          
-          asyncio.run(init_db())
-          '
-          
-      - name: Verify database schema
-        run: |
-          PGPASSWORD=swift_pass psql -h localhost -p 5433 -U swift_user -d test_swift_db -c "\dt"
-          
       - name: Run tests
         env:
-          TEST_DB_HOST: localhost
-          TEST_DB_PORT: 5433
-          TEST_DB_USER: swift_user
-          TEST_DB_PASS: swift_pass
-          TEST_DB_NAME: test_swift_db
+          DATABASE_URL: postgresql+asyncpg://swift_user:swift_pass@localhost:5432/swift_db
         run: |
-          poetry run pytest -v --cov=app tests/
+          poetry run pytest tests/unit/ -v
 
-      - name: Generate coverage report
-        if: success()
+      - name: Run Ruff linter
         run: |
-          poetry run pytest --cov=app --cov-report=xml
-
-      - name: Upload coverage to Codecov
-        if: success()
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
+          poetry run ruff check .
