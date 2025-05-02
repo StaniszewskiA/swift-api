@@ -1,37 +1,7 @@
 import pytest
 import pandas as pd
 from pandas.testing import assert_frame_equal
-from unittest.mock import AsyncMock, MagicMock
 from app.services.swift_code_parser import parse_swift_file
-from app.core.database import AsyncBase, async_engine
-
-
-@pytest.fixture(scope="module", autouse=True)
-async def setup_test_db():
-    """Setup and teardown the test database"""
-    async with async_engine.begin() as conn:
-        await conn.run_sync(AsyncBase.metadata.create_all)
-    yield
-    async with async_engine.begin() as conn:
-        await conn.run_sync(AsyncBase.metadata.drop_all)
-
-
-@pytest.fixture
-def mock_db_session():
-    """Create a mocked database session for unit tests"""
-    mock_session = AsyncMock()
-
-    mock_result = MagicMock()
-    mock_scalars = MagicMock()
-    mock_scalars.first.return_value = None
-    mock_scalars.all.return_value = []
-    mock_result.scalars.return_value = mock_scalars
-    mock_session.execute.return_value = mock_result
-
-    mock_session.commit = AsyncMock()
-    mock_session.rollback = AsyncMock()
-
-    return mock_session
 
 
 @pytest.fixture

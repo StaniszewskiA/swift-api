@@ -10,9 +10,15 @@ services:
       - "8080:8080"
     depends_on:
       - postgres
+      - test_postgres
     environment:
       DATABASE_URL: postgresql+asyncpg://swift_user:swift_pass@postgres:5432/swift_db
       SWIFT_CODES_PATH: /app/app/data/Interns_2025_SWIFT_CODES.xlsx  
+      TEST_DB_HOST: test_postgres
+      TEST_DB_PORT: 5432 
+      TEST_DB_USER: swift_user
+      TEST_DB_PASS: swift_pass
+      TEST_DB_NAME: test_swift_db 
     working_dir: /app
     restart: unless-stopped
 
@@ -28,5 +34,18 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  test_postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: swift_user
+      POSTGRES_PASSWORD: swift_pass
+      POSTGRES_DB: test_swift_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - test_pgdata:/var/lib/postgresql/data
+
 volumes:
   pgdata:
+  test_pgdata:
