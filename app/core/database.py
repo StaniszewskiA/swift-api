@@ -2,6 +2,8 @@ import os
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+from app.core import logger
+
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://swift_user:swift_pass@localhost:5432/swift_db")
 
 async_engine = create_async_engine(DATABASE_URL)
@@ -10,5 +12,12 @@ AsyncBase = declarative_base()
 
 
 async def async_yield_db():
-    async with AsyncSessionLocal() as session:
-        yield session
+    """
+    Provides an async DB session.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            yield session
+    except Exception as e:
+        logger.error(f"Failed to create database session: {e}")
+        raise
