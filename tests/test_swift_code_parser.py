@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 from pandas.testing import assert_frame_equal
 from unittest.mock import AsyncMock, MagicMock
-from app.services.swift_code_parser import parse_swift_file, save_swift_codes
+from app.services.swift_code_parser import parse_swift_file
 from app.core.database import AsyncBase, async_engine
 
 
@@ -83,37 +83,3 @@ async def test_parse_swift_file_exception_handling(caplog):
 
     assert "Error parsing file" in caplog.text
     assert "[Errno 2] No such file or directory: 'dummy_path.xlsx'" in caplog.text
-
-
-@pytest.mark.asyncio
-async def test_save_swift_codes_success(mock_db_session, tmp_path, sample_data):
-    """Test successful saving of SWIFT codes to the database"""
-    temp_file = tmp_path / "test_swift_file.xlsx"
-    sample_data.to_excel(temp_file, index=False)
-
-    parsed_data = parse_swift_file(temp_file)
-
-    await save_swift_codes(parsed_data, mock_db_session)
-
-
-@pytest.mark.asyncio
-async def test_save_swift_codes_exception_handling(mock_db_session, sample_data):
-    """Test handling of missing columns when saving SWIFT codes"""
-    invalid_data = sample_data.drop(columns=["SWIFT CODE"])
-
-    with pytest.raises(KeyError):
-        await save_swift_codes(invalid_data, mock_db_session)
-
-    mock_db_session.add_all.assert_not_called()
-    mock_db_session.commit.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_save_swift_codes_generic_exception_handling(mock_db_session, sample_data):
-    """Test handling of database errors when saving SWIFT codes"""
-    mock_db_session.add_all.side_effect = Exception("Mocked database error")
-
-    with pytest.raises(Exception):
-        await save_swift_codes(sample_data, mock_db_session)
-
-    mock_db_session.commit.assert_not_called()
