@@ -95,7 +95,11 @@ jobs:
           TEST_DB_NAME: test_swift_db
         run: |
           echo "Creating database schema..."
-          # Run Alembic migrations if you have them
+          
+          # Fix alembic.ini configuration
+          sed -i 's|^sqlalchemy.url =.*|sqlalchemy.url = postgresql+asyncpg://swift_user:swift_pass@localhost:5433/test_swift_db|' alembic.ini
+          
+          # Try Alembic migrations
           poetry run alembic upgrade head || echo "Alembic migration failed, continuing with direct schema creation"
           
           # Create database schema using SQLAlchemy models
