@@ -49,12 +49,14 @@ jobs:
             sleep 2
           done
 
-      - name: Install pytest-asyncio
-        run: poetry add pytest-asyncio
+      - name: Install pytest-asyncio and mock libraries
+        run: poetry add pytest-asyncio pytest-mock
 
-      - name: Run tests
+      - name: Run tests with database mocking
+        env:
+          USE_DB_MOCK: "true"
         run: |
-          poetry run pytest tests/unit
+          poetry run pytest tests/unit tests/integration -v
 
       - name: Run Ruff linter
         run: |

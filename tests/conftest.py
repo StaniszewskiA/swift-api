@@ -15,7 +15,6 @@ from app.core.logger import logger
 from app.models.models import SwiftCode
 from app.schemas.swift_code_schema import SwiftCodeCreate
 
-#############################################
 # Database Configuration for Testing
 #############################################
 
@@ -26,12 +25,14 @@ DB_USER = os.getenv("TEST_DB_USER", "swift_user")
 DB_PASS = os.getenv("TEST_DB_PASS", "swift_pass")
 DB_NAME = os.getenv("TEST_DB_NAME", "test_swift_db")
 
-TEST_DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+TEST_DATABASE_URL = (
+    os.getenv("TEST_DATABASE_URL") or f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
-if not TEST_DATABASE_URL:
-    raise RuntimeError("TEST_DATABASE_URL is not set. Ensure it is defined in your environment or docker-compose.yml.")
-
-async_engine = create_async_engine(TEST_DATABASE_URL, echo=True)
+if os.environ.get("USE_DB_MOCK", "false").lower() != "true":
+    async_engine = create_async_engine(TEST_DATABASE_URL, echo=True)
+else:
+    async_engine = None
 
 
 #############################################
@@ -48,6 +49,12 @@ def event_loop():
 
 @pytest.fixture(scope="session", autouse=True)
 async def setup_test_database():
+    """Setup test database or provide mocks if USE_DB_MOCK is true."""
+    if os.environ.get("USE_DB_MOCK", "false").lower() == "true":
+        logger.info("Using mocked database - skipping real DB setup")
+        yield
+        return
+
     from app.core.database import AsyncBase
     from alembic.config import Config
 
@@ -169,6 +176,36 @@ def async_context_manager_factory():
         return AsyncContextManagerMock(return_value, exception)
 
     return _factory
+
+
+@pytest.fixture
+async def async_yield_db():
+    """
+    Override the app's database session dependency with a mock or real db session.
+    """
+    if os.environ.get("USE_DB_MOCK", "false").lower() == "true":
+        mock_session = AsyncMock()
+
+        mock_result = MagicMock()
+        mock_scalars = MagicMock()
+        mock_scalars.first.return_value = None
+        mock_scalars.all.return_value = []
+        mock_result.scalars.return_value = mock_scalars
+        mock_session.execute.return_value = mock_result
+
+        mock_session.commit = AsyncMock()
+        mock_session.rollback = AsyncMock()
+        mock_session.refresh = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.add_all = MagicMock()
+        mock_session.delete = AsyncMock()
+
+        yield mock_session
+    else:
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as session:
+            yield session
 
 
 #############################################
