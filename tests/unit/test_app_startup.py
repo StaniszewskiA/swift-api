@@ -55,7 +55,7 @@ def test_app_root_endpoint(client):
 
 
 def test_app_metadata():
-    assert app.title == "Remitly SWIFT Code Service"
+    assert app.title == "SWIFT Code Service"
     assert app.description == "API for querying bank SWIFT codes"
     assert app.version == "1.0.0"
 

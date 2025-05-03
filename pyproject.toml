@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "remitly-internship-2025"
+name = "swift-api"
 version = "0.1.0"
 description = "Service for parsing, storing and retrieving SWIFT codes."
 authors = ["Adam Staniszewski"]

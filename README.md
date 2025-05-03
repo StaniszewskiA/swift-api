@@ -100,7 +100,7 @@ pytest
 pytest --cov=app tests
 ```
 
-Using Makefile (on Windows):
+Using Makefile (tested on Windows):
 ```bash
 # Run linting checks
 make test
