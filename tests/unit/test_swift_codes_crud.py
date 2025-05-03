@@ -1,3 +1,4 @@
+import pandas as pd
 from fastapi import HTTPException
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -8,6 +9,7 @@ from app.crud.swift_code_crud import (
     construct_country_swift_code_response,
     add_swift_code,
     delete_swift_code,
+    save_swift_codes,
 )
 from app.models.models import SwiftCode
 from app.schemas.swift_code_schema import SwiftCodeCreate
@@ -70,6 +72,175 @@ def sample_swift_code_create():
         isHeadquarter=True,
         swiftCode="NEWCODE123",
     )
+
+
+@pytest.fixture
+def valid_df():
+    return pd.DataFrame(
+        {
+            "SWIFT CODE": ["TESTCODE1", "TESTCODE2"],
+            "NAME": ["Test Bank 1", "Test Bank 2"],
+            "ADDRESS": ["123 Test St", "456 Test Ave"],
+            "COUNTRY ISO2 CODE": ["US", "GB"],
+            "COUNTRY NAME": ["UNITED STATES", "UNITED KINGDOM"],
+            "Is Headquarters": [True, False],
+            "Headquarters CODE": ["TESTCODE1", "TESTCODE1"],
+        }
+    )
+
+
+@pytest.fixture
+def invalid_swift_df():
+    return pd.DataFrame(
+        {
+            "SWIFT CODE": ["TESTCODE1"],
+            "NAME": ["Test Bank 1"],
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_tables_success(monkeypatch):
+    mock_conn = AsyncMock()
+
+    class AsyncContextManagerMock:
+        async def __aenter__(self):
+            return mock_conn
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    mock_async_engine = MagicMock()
+    mock_async_engine.begin.return_value = AsyncContextManagerMock()
+
+    monkeypatch.setattr("app.crud.swift_code_crud.async_engine", mock_async_engine)
+
+    from app.crud.swift_code_crud import create_tables
+    from app.core.database import AsyncBase
+
+    await create_tables()
+
+    mock_async_engine.begin.assert_called_once()
+    mock_conn.run_sync.assert_called_once_with(AsyncBase.metadata.create_all)
+
+
+@pytest.mark.asyncio
+async def test_create_table_exception(monkeypatch):
+    mock_async_engine = MagicMock()
+
+    class AsyncContextManagerMock:
+        async def __aenter__(self):
+            raise Exception("DB connection failed")
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    mock_async_engine.begin.return_value = AsyncContextManagerMock()
+
+    monkeypatch.setattr("app.crud.swift_code_crud.async_engine", mock_async_engine)
+
+    from app.crud.swift_code_crud import create_tables
+
+    with pytest.raises(Exception) as exc_info:
+        await create_tables()
+
+    assert "DB connection failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_seed_swift_codes_data_exists(monkeypatch):
+    mock_db_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.fetchone.return_value = {"swift_code": "EXISTING"}
+    mock_db_session.execute.return_value = mock_result
+
+    async def mock_async_yield_db():
+        yield mock_db_session
+
+    monkeypatch.setattr("app.crud.swift_code_crud.async_yield_db", mock_async_yield_db)
+
+    from app.crud.swift_code_crud import seed_swift_codes
+    import os
+
+    monkeypatch.setattr(os, "environ", {})
+
+    mock_save = AsyncMock()
+    monkeypatch.setattr("app.crud.swift_code_crud.save_swift_codes", mock_save)
+
+    await seed_swift_codes()
+
+    mock_db_session.execute.assert_called_once()
+    mock_save.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_seed_swift_codes_empty_file(monkeypatch):
+    mock_db_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.fetchone.return_value = None
+    mock_db_session.execute.return_value = mock_result
+
+    async def mock_async_yield_db():
+        yield mock_db_session
+
+    monkeypatch.setattr("app.crud.swift_code_crud.async_yield_db", mock_async_yield_db)
+
+    empty_df = pd.DataFrame()
+    monkeypatch.setattr("app.crud.swift_code_crud.parse_swift_file", lambda _: empty_df)
+
+    mock_save = AsyncMock()
+    monkeypatch.setattr("app.crud.swift_code_crud.save_swift_codes", mock_save)
+
+    from app.crud.swift_code_crud import seed_swift_codes
+
+    await seed_swift_codes()
+
+    mock_db_session.execute.assert_called_once()
+    mock_save.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_seed_swift_codes_success(monkeypatch, valid_df):
+    mock_db_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.fetchone.return_value = None
+    mock_db_session.execute.return_value = mock_result
+
+    async def mock_async_yield_db():
+        yield mock_db_session
+
+    monkeypatch.setattr("app.crud.swift_code_crud.async_yield_db", mock_async_yield_db)
+
+    monkeypatch.setattr("app.crud.swift_code_crud.parse_swift_file", lambda _: valid_df)
+
+    mock_save = AsyncMock()
+    monkeypatch.setattr("app.crud.swift_code_crud.save_swift_codes", mock_save)
+
+    from app.crud.swift_code_crud import seed_swift_codes
+
+    await seed_swift_codes()
+
+    mock_db_session.execute.assert_called_once()
+    mock_save.assert_called_once_with(valid_df, mock_db_session)
+
+
+@pytest.mark.asyncio
+async def test_seed_swift_codes_exception(monkeypatch):
+    mock_db_session = AsyncMock()
+    mock_db_session.execute.side_effect = Exception("Database error")
+
+    async def mock_async_yield_db():
+        yield mock_db_session
+
+    monkeypatch.setattr("app.crud.swift_code_crud.async_yield_db", mock_async_yield_db)
+
+    from app.crud.swift_code_crud import seed_swift_codes
+
+    with pytest.raises(Exception) as exc_info:
+        await seed_swift_codes()
+
+    assert "Database error" in str(exc_info.value)
+    mock_db_session.execute.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -262,3 +433,64 @@ async def test_delete_swift_code_db_error(mock_db_session, sample_swift_code):
     assert exc_info.value.detail == "Failed to delete SWIFT code"
 
     mock_db_session.rollback.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_save_swift_code_success(mock_db_session, valid_df):
+    await save_swift_codes(valid_df, mock_db_session)
+    mock_db_session.add_all.assert_called_once()
+
+    args, _ = mock_db_session.add_all.call_args
+    swift_codes = args[0]
+    assert len(swift_codes) == 2
+
+    assert swift_codes[0].swift_code == "TESTCODE1"
+    assert swift_codes[0].name == "Test Bank 1"
+    assert swift_codes[0].address == "123 Test St"
+    assert swift_codes[0].country_iso2 == "US"
+    assert swift_codes[0].country_name == "UNITED STATES"
+    assert swift_codes[0].is_headquarter is True
+    assert swift_codes[0].headquarters_code == "TESTCODE1"
+
+    mock_db_session.commit.assert_called_once()
+    mock_db_session.rollback.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_save_swift_codes_validation_error(mock_db_session, invalid_swift_df):
+    with pytest.raises(KeyError) as exc_info:
+        await save_swift_codes(invalid_swift_df, mock_db_session)
+
+    assert "Missing required columns" in str(exc_info)
+    mock_db_session.add_all.assert_not_called()
+    mock_db_session.commit.assert_not_called()
+    mock_db_session.rollback.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_save_swift_codes_db_error(mock_db_session, valid_df):
+    mock_db_session.commit.side_effect = SQLAlchemyError("Database error")
+
+    with pytest.raises(SQLAlchemyError):
+        await save_swift_codes(valid_df, mock_db_session)
+
+    mock_db_session.add_all.assert_called_once()
+    mock_db_session.commit.assert_called_once()
+    mock_db_session.rollback.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_swift_code_details_not_found(mock_db_session):
+    mock_result = MagicMock()
+    mock_scalars = MagicMock()
+    mock_scalars.first.return_value = None
+    mock_result.scalars.return_value = mock_scalars
+    mock_db_session.execute.return_value = mock_result
+
+    with pytest.raises(HTTPException) as excinfo:
+        await get_swift_code_details("NONEXISTENT", mock_db_session)
+
+    assert excinfo.value.status_code == 404
+    assert excinfo.value.detail == "SWIFT code not found"
+
+    mock_db_session.execute.assert_called_once()
