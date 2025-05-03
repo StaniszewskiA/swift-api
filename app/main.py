@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Remitly SWIFT Code Service",
+    title="SWIFT Code Service",
     description="API for querying bank SWIFT codes",
     version="1.0.0",
     lifespan=lifespan,
