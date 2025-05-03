@@ -1,3 +1,7 @@
+"""
+API Router for SWIFT Code Operations.
+"""
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import async_yield_db
@@ -31,8 +35,6 @@ async def get_swift_code(swift_code: str, db: AsyncSession = Depends(async_yield
 async def get_swift_codes_by_country(country_iso2code: str, db: AsyncSession = Depends(async_yield_db)):
     """Retrieve SWIFT codes for a specific country."""
     swift_codes = await swift_code_crud.fetch_swift_codes_by_country(country_iso2code, db)
-    if not swift_codes:
-        return {"country_iso2code": country_iso2code, "country_name": None, "swift_codes": []}
     country_name = swift_codes[0].country_name
     return swift_code_crud.construct_country_swift_code_response(country_iso2code, country_name, swift_codes)
 

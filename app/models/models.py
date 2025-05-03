@@ -1,3 +1,7 @@
+"""
+Database model.
+"""
+
 from sqlalchemy import Column, String, Boolean
 from app.core.database import AsyncBase
 

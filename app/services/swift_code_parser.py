@@ -1,3 +1,7 @@
+"""
+SWIFT code file parser.
+"""
+
 import pandas as pd
 
 from app.core.logger import logger
