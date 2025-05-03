@@ -149,3 +149,4 @@ MIT
 ## Possible improvements:
 - **API call caching**: Implement response caching to improve performance
 - **Enhanced GitHub workflows**: Add more comprehensive CI/CD pipelines
+- **Add authorization**: Integrate role-based access control to ensure that only authenticated and authorized users can access the database
