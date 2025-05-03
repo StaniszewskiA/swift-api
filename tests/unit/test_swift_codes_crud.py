@@ -1,6 +1,10 @@
+"""
+Unit test for SWIFT code CRUD operations on mocked database.
+"""
+
 import pandas as pd
-from fastapi import HTTPException
 import pytest
+from fastapi import HTTPException
 from unittest.mock import AsyncMock, MagicMock
 from sqlalchemy.exc import SQLAlchemyError
 from app.crud.swift_code_crud import (
@@ -11,107 +15,17 @@ from app.crud.swift_code_crud import (
     delete_swift_code,
     save_swift_codes,
 )
-from app.models.models import SwiftCode
-from app.schemas.swift_code_schema import SwiftCodeCreate
 
-
-@pytest.fixture
-def mock_db_session():
-    mock_session = AsyncMock()
-
-    mock_result = MagicMock()
-    mock_scalars = MagicMock()
-    mock_scalars.first.return_value = None
-    mock_scalars.all.return_value = []
-    mock_result.scalars.return_value = mock_scalars
-    mock_session.execute.return_value = mock_result
-
-    mock_session.commit = AsyncMock()
-    mock_session.rollback = AsyncMock()
-    mock_session.refresh = AsyncMock()
-    mock_session.add = MagicMock()
-    mock_session.add_all = MagicMock()
-    mock_session.delete = AsyncMock()
-
-    return mock_session
-
-
-@pytest.fixture
-def sample_swift_code():
-    return SwiftCode(
-        swift_code="TESTCODE123",
-        name="Test Bank",
-        address="123 Test St",
-        country_iso2="US",
-        country_name="UNITED STATES",
-        is_headquarter=True,
-        headquarters_code="TESTCODE123",
-    )
-
-
-@pytest.fixture
-def sample_branch_swift_code():
-    return SwiftCode(
-        swift_code="TESTCODE456",
-        name="Test Bank Branch",
-        address="456 Branch St",
-        country_iso2="US",
-        country_name="UNITED STATES",
-        is_headquarter=False,
-        headquarters_code="TESTCODE123",
-    )
-
-
-@pytest.fixture
-def sample_swift_code_create():
-    return SwiftCodeCreate(
-        address="123 New St",
-        bankName="New Bank",
-        countryISO2="GB",
-        countryName="UNITED KINGDOM",
-        isHeadquarter=True,
-        swiftCode="NEWCODE123",
-    )
-
-
-@pytest.fixture
-def valid_df():
-    return pd.DataFrame(
-        {
-            "SWIFT CODE": ["TESTCODE1", "TESTCODE2"],
-            "NAME": ["Test Bank 1", "Test Bank 2"],
-            "ADDRESS": ["123 Test St", "456 Test Ave"],
-            "COUNTRY ISO2 CODE": ["US", "GB"],
-            "COUNTRY NAME": ["UNITED STATES", "UNITED KINGDOM"],
-            "Is Headquarters": [True, False],
-            "Headquarters CODE": ["TESTCODE1", "TESTCODE1"],
-        }
-    )
-
-
-@pytest.fixture
-def invalid_swift_df():
-    return pd.DataFrame(
-        {
-            "SWIFT CODE": ["TESTCODE1"],
-            "NAME": ["Test Bank 1"],
-        }
-    )
+#############################################
+# Database Initialization Tests
+#############################################
 
 
 @pytest.mark.asyncio
-async def test_create_tables_success(monkeypatch):
+async def test_create_tables_success(monkeypatch, async_context_manager_factory):
     mock_conn = AsyncMock()
-
-    class AsyncContextManagerMock:
-        async def __aenter__(self):
-            return mock_conn
-
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-
     mock_async_engine = MagicMock()
-    mock_async_engine.begin.return_value = AsyncContextManagerMock()
+    mock_async_engine.begin.return_value = async_context_manager_factory(return_value=mock_conn)
 
     monkeypatch.setattr("app.crud.swift_code_crud.async_engine", mock_async_engine)
 
@@ -125,17 +39,9 @@ async def test_create_tables_success(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_create_table_exception(monkeypatch):
+async def test_create_table_exception(monkeypatch, async_context_manager_factory):
     mock_async_engine = MagicMock()
-
-    class AsyncContextManagerMock:
-        async def __aenter__(self):
-            raise Exception("DB connection failed")
-
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-
-    mock_async_engine.begin.return_value = AsyncContextManagerMock()
+    mock_async_engine.begin.return_value = async_context_manager_factory(exception=Exception("DB connection failed"))
 
     monkeypatch.setattr("app.crud.swift_code_crud.async_engine", mock_async_engine)
 
@@ -210,7 +116,6 @@ async def test_seed_swift_codes_success(monkeypatch, valid_df):
         yield mock_db_session
 
     monkeypatch.setattr("app.crud.swift_code_crud.async_yield_db", mock_async_yield_db)
-
     monkeypatch.setattr("app.crud.swift_code_crud.parse_swift_file", lambda _: valid_df)
 
     mock_save = AsyncMock()
@@ -243,92 +148,9 @@ async def test_seed_swift_codes_exception(monkeypatch):
     mock_db_session.execute.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_fetch_swift_codes_by_country_success(mock_db_session, sample_swift_code):
-    mock_result = MagicMock()
-    mock_scalars = MagicMock()
-    mock_scalars.all.return_value = [sample_swift_code]
-    mock_result.scalars.return_value = mock_scalars
-    mock_db_session.execute.return_value = mock_result
-
-    result = await fetch_swift_codes_by_country("US", mock_db_session)
-
-    assert len(result) == 1
-    assert result[0].country_iso2 == "US"
-    assert result[0].swift_code == "TESTCODE123"
-
-
-@pytest.mark.asyncio
-async def test_fetch_swift_codes_by_country_not_found(mock_db_session):
-    with pytest.raises(HTTPException) as exc_info:
-        await fetch_swift_codes_by_country("XX", mock_db_session)
-
-    assert exc_info.value.status_code == 404
-    assert exc_info.value.detail == "No SWIFT codes found for this country"
-
-
-@pytest.mark.asyncio
-async def test_add_swift_code_success(mock_db_session, sample_swift_code_create):
-    mock_result = MagicMock()
-    mock_scalars = MagicMock()
-    mock_scalars.first.return_value = None
-    mock_result.scalars.return_value = mock_scalars
-    mock_db_session.execute.return_value = mock_result
-
-    result = await add_swift_code(sample_swift_code_create, mock_db_session)
-
-    assert result["message"] == "SWIFT code added successfully"
-    assert result["swiftCode"] == "NEWCODE123"
-
-    mock_db_session.add.assert_called_once()
-    mock_db_session.commit.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_add_swift_code_duplicate(mock_db_session, sample_swift_code, sample_swift_code_create):
-    mock_result = MagicMock()
-    mock_scalars = MagicMock()
-    mock_scalars.first.return_value = sample_swift_code
-    mock_result.scalars.return_value = mock_scalars
-    mock_db_session.execute.return_value = mock_result
-
-    with pytest.raises(HTTPException) as exc_info:
-        await add_swift_code(sample_swift_code_create, mock_db_session)
-
-    assert exc_info.value.status_code == 409
-    assert exc_info.value.detail == "SWIFT code already exists"
-    mock_db_session.add.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_delete_swift_code_success(mock_db_session, sample_swift_code):
-    mock_result = MagicMock()
-    mock_scalars = MagicMock()
-    mock_scalars.first.return_value = sample_swift_code
-    mock_result.scalars.return_value = mock_scalars
-    mock_db_session.execute.return_value = mock_result
-
-    result = await delete_swift_code("TESTCODE123", mock_db_session)
-
-    assert result["message"] == "SWIFT code TESTCODE123 deleted successfully"
-    mock_db_session.delete.assert_called_once()
-    mock_db_session.commit.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_delete_swift_code_not_found(mock_db_session):
-    mock_result = MagicMock()
-    mock_scalars = MagicMock()
-    mock_scalars.first.return_value = None
-    mock_result.scalars.return_value = mock_scalars
-    mock_db_session.execute.return_value = mock_result
-
-    with pytest.raises(HTTPException) as exc_info:
-        await delete_swift_code("NULL", mock_db_session)
-
-    assert exc_info.value.status_code == 404
-    assert exc_info.value.detail == "SWIFT code not found"
-    mock_db_session.delete.assert_not_called()
+#############################################
+# Read Operation Tests
+#############################################
 
 
 @pytest.mark.asyncio
@@ -373,28 +195,83 @@ async def test_get_swift_code_details_non_hq(mock_db_session, sample_branch_swif
     assert mock_db_session.execute.call_count == 1
 
 
-def test_construct_country_swift_code_response(sample_swift_code, sample_branch_swift_code):
-    country_iso2 = "US"
-    country_name = "UNITED STATES"
-    swift_codes = [sample_swift_code, sample_branch_swift_code]
+@pytest.mark.asyncio
+async def test_get_swift_code_details_not_found(mock_db_session):
+    mock_result = MagicMock()
+    mock_scalars = MagicMock()
+    mock_scalars.first.return_value = None
+    mock_result.scalars.return_value = mock_scalars
+    mock_db_session.execute.return_value = mock_result
 
-    response = construct_country_swift_code_response(country_iso2, country_name, swift_codes)
+    with pytest.raises(HTTPException) as excinfo:
+        await get_swift_code_details("NONEXISTENT", mock_db_session)
 
-    assert response.countryISO2 == country_iso2
-    assert response.countryName == country_name
-    assert len(response.swiftCodes) == 2
+    assert excinfo.value.status_code == 404
+    assert excinfo.value.detail == "SWIFT code not found"
 
-    assert response.swiftCodes[0].swiftCode == "TESTCODE123"
-    assert response.swiftCodes[0].bankName == "Test Bank"
-    assert response.swiftCodes[0].address == "123 Test St"
-    assert response.swiftCodes[0].countryISO2 == "US"
-    assert response.swiftCodes[0].isHeadquarter is True
+    mock_db_session.execute.assert_called_once()
 
-    assert response.swiftCodes[1].swiftCode == "TESTCODE456"
-    assert response.swiftCodes[1].bankName == "Test Bank Branch"
-    assert response.swiftCodes[1].address == "456 Branch St"
-    assert response.swiftCodes[1].countryISO2 == "US"
-    assert response.swiftCodes[1].isHeadquarter is False
+
+@pytest.mark.asyncio
+async def test_fetch_swift_codes_by_country_success(mock_db_session, sample_swift_code):
+    mock_result = MagicMock()
+    mock_scalars = MagicMock()
+    mock_scalars.all.return_value = [sample_swift_code]
+    mock_result.scalars.return_value = mock_scalars
+    mock_db_session.execute.return_value = mock_result
+
+    result = await fetch_swift_codes_by_country("US", mock_db_session)
+
+    assert len(result) == 1
+    assert result[0].country_iso2 == "US"
+    assert result[0].swift_code == "TESTCODE123"
+
+
+@pytest.mark.asyncio
+async def test_fetch_swift_codes_by_country_not_found(mock_db_session):
+    with pytest.raises(HTTPException) as exc_info:
+        await fetch_swift_codes_by_country("XX", mock_db_session)
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "No SWIFT codes found for this country"
+
+
+#############################################
+# Write Operation Tests
+#############################################
+
+
+@pytest.mark.asyncio
+async def test_add_swift_code_success(mock_db_session, sample_swift_code_create):
+    mock_result = MagicMock()
+    mock_scalars = MagicMock()
+    mock_scalars.first.return_value = None
+    mock_result.scalars.return_value = mock_scalars
+    mock_db_session.execute.return_value = mock_result
+
+    result = await add_swift_code(sample_swift_code_create, mock_db_session)
+
+    assert result["message"] == "SWIFT code added successfully"
+    assert result["swiftCode"] == "NEWCODE123"
+
+    mock_db_session.add.assert_called_once()
+    mock_db_session.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_add_swift_code_duplicate(mock_db_session, sample_swift_code, sample_swift_code_create):
+    mock_result = MagicMock()
+    mock_scalars = MagicMock()
+    mock_scalars.first.return_value = sample_swift_code
+    mock_result.scalars.return_value = mock_scalars
+    mock_db_session.execute.return_value = mock_result
+
+    with pytest.raises(HTTPException) as exc_info:
+        await add_swift_code(sample_swift_code_create, mock_db_session)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "SWIFT code already exists"
+    mock_db_session.add.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -414,6 +291,37 @@ async def test_add_swift_code_db_error(mock_db_session, sample_swift_code_create
     assert exc_info.value.detail == "Failed to add SWIFT code"
 
     mock_db_session.rollback.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_swift_code_success(mock_db_session, sample_swift_code):
+    mock_result = MagicMock()
+    mock_scalars = MagicMock()
+    mock_scalars.first.return_value = sample_swift_code
+    mock_result.scalars.return_value = mock_scalars
+    mock_db_session.execute.return_value = mock_result
+
+    result = await delete_swift_code("TESTCODE123", mock_db_session)
+
+    assert result["message"] == "SWIFT code TESTCODE123 deleted successfully"
+    mock_db_session.delete.assert_called_once()
+    mock_db_session.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_swift_code_not_found(mock_db_session):
+    mock_result = MagicMock()
+    mock_scalars = MagicMock()
+    mock_scalars.first.return_value = None
+    mock_result.scalars.return_value = mock_scalars
+    mock_db_session.execute.return_value = mock_result
+
+    with pytest.raises(HTTPException) as exc_info:
+        await delete_swift_code("NULL", mock_db_session)
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "SWIFT code not found"
+    mock_db_session.delete.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -479,18 +387,30 @@ async def test_save_swift_codes_db_error(mock_db_session, valid_df):
     mock_db_session.rollback.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_get_swift_code_details_not_found(mock_db_session):
-    mock_result = MagicMock()
-    mock_scalars = MagicMock()
-    mock_scalars.first.return_value = None
-    mock_result.scalars.return_value = mock_scalars
-    mock_db_session.execute.return_value = mock_result
+#############################################
+# Helper Function Tests
+#############################################
 
-    with pytest.raises(HTTPException) as excinfo:
-        await get_swift_code_details("NONEXISTENT", mock_db_session)
 
-    assert excinfo.value.status_code == 404
-    assert excinfo.value.detail == "SWIFT code not found"
+def test_construct_country_swift_code_response(sample_swift_code, sample_branch_swift_code):
+    country_iso2 = "US"
+    country_name = "UNITED STATES"
+    swift_codes = [sample_swift_code, sample_branch_swift_code]
 
-    mock_db_session.execute.assert_called_once()
+    response = construct_country_swift_code_response(country_iso2, country_name, swift_codes)
+
+    assert response.countryISO2 == country_iso2
+    assert response.countryName == country_name
+    assert len(response.swiftCodes) == 2
+
+    assert response.swiftCodes[0].swiftCode == "TESTCODE123"
+    assert response.swiftCodes[0].bankName == "Test Bank"
+    assert response.swiftCodes[0].address == "123 Test St"
+    assert response.swiftCodes[0].countryISO2 == "US"
+    assert response.swiftCodes[0].isHeadquarter is True
+
+    assert response.swiftCodes[1].swiftCode == "TESTCODE456"
+    assert response.swiftCodes[1].bankName == "Test Bank Branch"
+    assert response.swiftCodes[1].address == "456 Branch St"
+    assert response.swiftCodes[1].countryISO2 == "US"
+    assert response.swiftCodes[1].isHeadquarter is False

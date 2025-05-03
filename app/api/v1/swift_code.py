@@ -1,3 +1,7 @@
+"""
+API Router for SWIFT Code Operations.
+"""
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import async_yield_db
