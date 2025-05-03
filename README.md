@@ -1,4 +1,4 @@
-# Remitly SWIFT Code Service
+# SWIFT Codes Service
 
 A FastAPI-based microservice for parsing, storing, and retrieving bank SWIFT codes. This service provides a RESTful API for managing SWIFT code data and supports operations like querying by country or specific SWIFT code.
 
@@ -36,8 +36,8 @@ A FastAPI-based microservice for parsing, storing, and retrieving bank SWIFT cod
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/StaniszewskiA/remitly-2025
-   cd remitly-2025
+   git clone https://github.com/StaniszewskiA/swift-api
+   cd swift-api
    ```
 
 2. Install dependencies:
@@ -116,7 +116,7 @@ Tests use either a mocked database or a separate PostgreSQL database specified b
 ## Project Structure
 
 ```
-remitly-2025/
+swift-api/
 ├── alembic/                # Database migrations
 ├── app/
 │   ├── api/                # API route definitions
