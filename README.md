@@ -71,6 +71,27 @@ make setup
 make uvicorn-server
 ```
 
+## Running Inside Docker
+
+To run the application inside Docker, follow these steps:
+
+1. Navigate to the `docker` directory:
+   ```bash
+   cd docker
+   ```
+
+2. Build and start the Docker containers:
+   ```bash
+   docker-compose up --build
+   ```
+
+3. Access the application at `http://localhost:8080` in your browser.
+
+4. To stop the containers, run:
+   ```bash
+   docker-compose down
+   ```
+
 ## API Documentation
 
 When the service is running, access the auto-generated Swagger documentation at:
@@ -149,4 +170,3 @@ MIT
 ## Possible improvements:
 - **API call caching**: Implement response caching to improve performance
 - **Enhanced GitHub workflows**: Add more comprehensive CI/CD pipelines
-- **Add authorization**: Integrate role-based access control to ensure that only authenticated and authorized users can access the database
